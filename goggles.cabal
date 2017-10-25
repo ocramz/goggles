@@ -29,7 +29,7 @@ library
                      , bytestring
                      , time
                      , stm
-                     , envy
+                     -- , envy
                      , containers
                      , exceptions
   
