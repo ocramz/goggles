@@ -1,16 +1,28 @@
-{-# language DeriveGeneric #-}
+-- {-# language DeriveGeneric #-}
 module Network.Goggles where
 
 
-import System.Envy
-import GHC.Generics
+import System.Environment (lookupEnv)
 
 
 
 
-data Token = Token { tokenStr :: String } deriving (Show, Generic)
 
-instance DefConfig Token where
-  defConfig = Token ""
 
-instance FromEnv Token where
+
+
+
+
+
+
+-- -- `envy` for large-scale environment handling
+
+-- import System.Envy
+-- import GHC.Generics
+
+-- data Token = Token { tokenStr :: String } deriving (Show, Generic)
+
+-- instance DefConfig Token where
+--   defConfig = Token ""
+
+-- instance FromEnv Token where
