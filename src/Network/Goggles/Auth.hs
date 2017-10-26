@@ -18,6 +18,7 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as LBS
 
 import qualified Data.Map as M
+import Data.Typeable
 
 import Data.Keys (gcpUID, gcpPrivateKey)
 
@@ -42,7 +43,20 @@ mkRequest url m heads = do
   let mbs = renderStdMethod m
   return $ reqBase { method = mbs, requestHeaders = heads }
 
-  
+
+withGCPCredentials :: (T.Text -> T.Text -> IO b) -> IO b
+withGCPCredentials f = do
+  uid <- gcpUID 
+  secret <- gcpPrivateKey
+  case (uid, secret) of (Just u, Just s) -> f u s
+                        (Nothing, Just _) -> throwM $ GCPAuthException "GCP private key not found"
+                        (Just _, Nothing) ->  throwM $ GCPAuthException "GCP user id not found"
+                        (Nothing, Nothing) -> throwM $ GCPAuthException "GCP credentials not found"                        
+
+data GCPException = GCPAuthException String deriving (Show, Typeable)
+instance Exception GCPException
+
+
 
 
 
