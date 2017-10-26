@@ -1,5 +1,5 @@
 {-# language OverloadedStrings #-}
-module Data.Keys (parseSecrets) where
+module Data.Keys (gcpUID, gcpPrivateKey) where
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -24,6 +24,17 @@ parseSecrets = do
     Left e -> error e
     Right x -> return $ M.fromList x
 
+gcpUID, gcpPrivateKey :: IO (Maybe T.Text)
+gcpUID = do
+  ma <- parseSecrets
+  return $ M.lookup "GCS_CLIENT_EMAIL" ma
+
+gcpPrivateKey = do 
+  ma <- parseSecrets
+  return $ M.lookup "GCS_PRIVATE_KEY" ma
+
+  
+  
 validName :: A.Parser T.Text
 validName = A.takeWhile1 (\c ->
                             isAlphaNum c ||

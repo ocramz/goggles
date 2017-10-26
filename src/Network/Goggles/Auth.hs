@@ -17,18 +17,20 @@ import qualified Data.Text as T
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as LBS
 
-import Data.Keys
+import qualified Data.Map as M
+
+import Data.Keys (gcpUID, gcpPrivateKey)
 
 
 
-scopes :: [BS.ByteString]
-scopes = [ "https://www.googleapis.com/auth/cloud-platform" ]
+authScopes :: [String]
+authScopes = [ "https://www.googleapis.com/auth/cloud-platform" ]
 
 baseUrl :: BS.ByteString
 baseUrl = "https://accounts.google.com/o/oauth2/v2/auth"
 
 mkAuthHeader :: String -> Header
-mkAuthHeader tok = (hAuthorization, BS.pack $ unwords ["Bearer :",  tok])
+mkAuthHeader tok = (hAuthorization, BS.pack $ unwords ["Bearer",  tok])
 
 mkContentTypeHeader :: String -> Header
 mkContentTypeHeader ct = (hContentType, BS.pack ct)
