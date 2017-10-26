@@ -20,7 +20,7 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map as M
 import Data.Typeable
 
-import Data.Keys (gcpUID, gcpPrivateKey)
+import Data.Keys (gcpUID, gcpPrivateKey, gcpServiceAccountSecret)
 
 
 
