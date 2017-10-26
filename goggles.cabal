@@ -1,7 +1,7 @@
 name:                goggles
 version:             0.1.0.0
-synopsis:            Interface to the Google Cloud APIs
-description:         Interface to the Google Cloud APIs
+synopsis:            Interface to Google Cloud APIs
+description:         Interface to Google Cloud APIs
 homepage:            https://github.com/ocramz/goggles
 license:             BSD3
 license-file:        LICENSE
@@ -20,7 +20,9 @@ library
   hs-source-dirs:      src
   exposed-modules:     Network.Goggles
                        Network.Goggles.Storage
+  other-modules:       Data.Keys
   build-depends:       base >= 4.7 && < 5
+                     , attoparsec
                      , aeson
                      , http-client
                      , http-client-tls
