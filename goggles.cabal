@@ -19,8 +19,11 @@ library
   ghc-options:         -Wall
   hs-source-dirs:      src
   exposed-modules:     Network.Goggles
+                       Network.Goggles.Cloud
                        Network.Goggles.Storage
-  other-modules:       Data.Keys
+                       Network.Goggles.Internal.HTTP
+                       Network.Goggles.Auth
+  other-modules:       Data.Keys                    
   build-depends:       base >= 4.7 && < 5
                      , binary
                      , scientific
@@ -29,6 +32,7 @@ library
                      , http-client
                      , http-client-tls
                      , http-types
+                     , mime-types
                      , mtl
                      , transformers
                      , text
@@ -39,6 +43,7 @@ library
                      , containers
                      , unordered-containers
                      , exceptions
+                     , filepath
                      , retry
   
   

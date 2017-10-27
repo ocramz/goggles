@@ -17,15 +17,16 @@ import Control.Exception
 import Control.Monad.Reader
 import Control.Monad.Catch hiding (catch)
 import Control.Monad.Except
-import Control.Exception
+-- import Control.Exception
 import Control.Concurrent.STM
 
 import Control.Retry
 
 -- import Data.String (IsString(..))
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T (encodeUtf8)
 import qualified Data.ByteString.Char8 as BS
-import qualified Data.ByteString.Lazy as LBS
+-- import qualified Data.ByteString.Lazy as LBS
 
 import Data.Time
 import Data.Scientific (toBoundedInteger)
@@ -103,6 +104,34 @@ mkHandle manager fetchToken = do
 defaultMetadataToken :: Cloud Token
 defaultMetadataToken = serviceAccountToken "default"
 
+-- | Store the token in the cache. If the cache already contains a token,
+-- the better one of the two is actually stored (where *better* is defined
+-- as the one which expires later). So it is safe to call this function
+-- even if you are unsure if the token you have is better than the one
+-- which is already in the cache.
+--
+-- Returns the better token.
+
+cacheToken :: Token -> Cloud Token
+cacheToken token = do
+    tokenTVar <- asks hToken
+    cloudIO $ atomically $ do
+        currentToken <- readTVar tokenTVar
+        let newToken = case currentToken of
+              Nothing -> token
+              Just x  -> if tokenExpiresAt x > tokenExpiresAt token then x else token
+
+        writeTVar tokenTVar (Just newToken)
+        return newToken
+
+
+refreshToken :: Cloud Token
+refreshToken = do
+    fetchToken <- asks hFetchToken
+    token <- fetchToken
+    cacheToken token
+    
+
 
 metadataUri :: String
 metadataUri = "http://metadata.google.internal"
@@ -135,6 +164,46 @@ serviceAccountToken acc = do
                         return $ Token (addUTCTime (fromIntegral i) now) value
             _ -> throwError $ UnknownError "fetchToken: Could not decode response"
         _ -> throwError $ UnknownError "fetchToken: Bad resposnse"
+
+
+
+
+
+
+
+
+
+
+-- | Return the value of the access token. The function guarantees that the
+-- token is valid for at least 60 seconds. Though you should not be afraid
+-- to call the function frequently, it caches the token inside the 'Handle' so
+-- there is very little overhead.
+
+accessToken :: Cloud T.Text
+accessToken = do
+    tokenTVar <- asks hToken
+    mbToken <- cloudIO $ atomically $ readTVar tokenTVar
+    tokenValue <$> case mbToken of
+        Nothing -> refreshToken
+        Just t -> do
+            now <- cloudIO $ getCurrentTime
+            if now > addUTCTime (-60) (tokenExpiresAt t)
+                then refreshToken
+                else return t
+
+
+
+-- | Construct a 'Header' that contains the authorization details. Such a header
+-- needs to be supplied to all requsts which require authorization.
+--
+-- Not all requests require it. In particular, requests to the metadata server
+-- don't.
+authorizationHeader :: Cloud Header
+authorizationHeader = do
+    token <- accessToken
+    return ("Authorization", "Bearer " <> T.encodeUtf8 token)
+
+
 
 
 
