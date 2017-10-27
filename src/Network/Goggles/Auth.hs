@@ -1,5 +1,7 @@
-{-# language OverloadedStrings #-}
+{-# language OverloadedStrings, GeneralizedNewtypeDeriving, MultiParamTypeClasses #-}
 module Network.Goggles.Auth where
+
+import Data.Monoid
 
 import Network.HTTP.Types
 import Network.HTTP.Types.URI (urlEncode, urlDecode)
@@ -10,9 +12,14 @@ import Data.Binary.Builder
 
 import Data.Aeson (FromJSON(..), ToJSON(..), object, (.=), encode, decode)
 
+import Control.Applicative (Alternative(..), empty, (<|>))
 import Control.Monad.Reader
-import Control.Monad.Catch
+import Control.Monad.Catch hiding (catch)
+import Control.Monad.Except
+import Control.Exception
 import Control.Concurrent.STM
+
+import Control.Retry
 
 import Data.String (IsString(..))
 import qualified Data.Text as T
@@ -33,20 +40,71 @@ data Token = Token
     , tokenValue     :: !T.Text
     } deriving (Show)
 
--- data Handle = Handle
---     { hManager :: !Manager
---       -- ^ Shared HTTP manager.
---     , hToken :: !(TVar (Maybe Token))
---       -- ^ Cache for the access token. Use 'accessToken' when within the 'Cloud'
---       -- monad to access the token. That function will automatically refresh it
---       -- when it is about to expire.
---     , hFetchToken :: !(Cloud Token)
---       -- ^ The action which is used to fetch a fresh access token.
---     }
+data Handle = Handle
+    { hManager :: !Manager
+      -- ^ Shared HTTP manager.
+    , hToken :: !(TVar (Maybe Token))
+      -- ^ Cache for the access token. Use 'accessToken' when within the 'Cloud'
+      -- monad to access the token. That function will automatically refresh it
+      -- when it is about to expire.
+    , hFetchToken :: !(Cloud Token)
+      -- ^ The action which is used to fetch a fresh access token.
+    }
 
--- newtype Cloud a = Cloud { runCloud :: ReaderT Handle }
-                
+data Error
+    = UnknownError !T.Text
+    | IOError !String
+    | DecodeError !String
+    | TemporaryIOError !String
+    deriving (Eq, Show)
+instance Exception Error where
 
+newtype Cloud a = Cloud
+    { runCloud :: ReaderT Handle (ExceptT Error IO) a
+    } deriving (Functor, Applicative, Monad, MonadIO,
+        MonadError Error, MonadReader Handle)
+
+instance Alternative Cloud where
+    empty = throwError $ UnknownError "empty"
+    a <|> b = catchError a (const b)
+
+-- | Evaluate a 'Cloud' action and return either the 'Error' or the result.
+evalCloud :: Handle -> Cloud a -> IO (Either Error a)
+evalCloud h m = (runExceptT $ runReaderT (runCloud m) h) `catch`
+    (\e -> transformException (UnknownError . T.pack . show) e >>= return . Left)
+
+
+-- | Transform an synchronous exception into an 'Error'. Async exceptions
+-- are left untouched and propagated into the 'IO' monad.
+transformException :: (SomeException -> Error) -> SomeException -> IO Error
+transformException f e = case fromException e of
+    Just async -> throwIO (async :: AsyncException)
+    Nothing    -> return $ f e
+
+
+-- | Run an 'IO' action inside the 'Cloud' monad, catch all synchronous
+-- exceptions and transform them into 'Error's.
+cloudIO :: IO a -> Cloud a
+cloudIO m = do
+    res <- liftIO $ (Right <$> m) `catch`
+        (\e -> transformException (IOError . show) e >>= return . Left)
+    case res of
+        Left e -> throwError e
+        Right  r -> return r
+
+
+-- | apply a given retry policy a finite number of times
+retryBounded :: Monad m => RetryPolicyM m -> Int -> RetryPolicyM m
+retryBounded policy n = policy <> limitRetries n
+
+
+
+
+
+
+
+
+-- | authentication scopes, raw HTTP connections
 
 authScopes :: [String]
 authScopes = [ "https://www.googleapis.com/auth/cloud-platform" ]
@@ -62,24 +120,36 @@ mkContentTypeHeader ct = (hContentType, BS.pack ct)
 
 
 
+runRequest :: Request -> Cloud BS.ByteString
+runRequest req = do
+    manager <- asks hManager
+    cloudIO $ do
+        res <- httpLbs req manager
+        return $ LBS.toStrict $ responseBody res
 
-get :: MonadThrow m => String -> RequestHeaders -> BS.ByteString -> m Request
+
+
+get :: String -> RequestHeaders -> BS.ByteString -> Cloud BS.ByteString
 get uri heads body = do
-  reqBase <- parseUrlThrow uri
-  return $ reqBase {
+  req <- cloudIO $ do
+    reqBase <- parseUrlThrow uri
+    return $ reqBase {
       method = renderStdMethod GET
     , requestHeaders = heads
     , requestBody = RequestBodyBS body
                    }
+  runRequest req
 
-post :: MonadThrow m => String -> RequestHeaders -> BS.ByteString -> m Request
+post :: String -> RequestHeaders -> BS.ByteString -> Cloud BS.ByteString
 post uri heads body = do
-  reqBase <- parseUrlThrow uri
-  return $ reqBase {
+  req <- cloudIO $ do
+    reqBase <- parseUrlThrow uri
+    return $ reqBase {
       method = renderStdMethod POST
     , requestHeaders = heads
     , requestBody = RequestBodyBS body
                    }
+  runRequest req
 
 
 
