@@ -10,9 +10,10 @@ import Network.HTTP.Client
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Data.Binary.Builder
 
-import Data.Aeson (FromJSON(..), ToJSON(..), object, (.=), encode, decode)
+import Data.Aeson -- (FromJSON(..), ToJSON(..), Object(..), object, (.=), encode, decode)
 
-import Control.Applicative (Alternative(..), empty, (<|>))
+import Control.Exception
+
 import Control.Monad.Reader
 import Control.Monad.Catch hiding (catch)
 import Control.Monad.Except
@@ -21,81 +22,34 @@ import Control.Concurrent.STM
 
 import Control.Retry
 
-import Data.String (IsString(..))
+-- import Data.String (IsString(..))
 import qualified Data.Text as T
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as LBS
 
 import Data.Time
+import Data.Scientific (toBoundedInteger)
 
-import qualified Data.Map as M
+import qualified Data.HashMap.Strict as M
 import Data.Typeable
 
 import Data.Keys (gcpUID, gcpPrivateKey, gcpServiceAccountSecret)
 
+import Network.Goggles.Cloud
 
 
-data Token = Token
-    { tokenExpiresAt :: !UTCTime
-    , tokenValue     :: !T.Text
-    } deriving (Show)
-
-data Handle = Handle
-    { hManager :: !Manager
-      -- ^ Shared HTTP manager.
-    , hToken :: !(TVar (Maybe Token))
-      -- ^ Cache for the access token. Use 'accessToken' when within the 'Cloud'
-      -- monad to access the token. That function will automatically refresh it
-      -- when it is about to expire.
-    , hFetchToken :: !(Cloud Token)
-      -- ^ The action which is used to fetch a fresh access token.
-    }
-
-data Error
-    = UnknownError !T.Text
-    | IOError !String
-    | DecodeError !String
-    | TemporaryIOError !String
-    deriving (Eq, Show)
-instance Exception Error where
-
-newtype Cloud a = Cloud
-    { runCloud :: ReaderT Handle (ExceptT Error IO) a
-    } deriving (Functor, Applicative, Monad, MonadIO,
-        MonadError Error, MonadReader Handle)
-
-instance Alternative Cloud where
-    empty = throwError $ UnknownError "empty"
-    a <|> b = catchError a (const b)
-
--- | Evaluate a 'Cloud' action and return either the 'Error' or the result.
-evalCloud :: Handle -> Cloud a -> IO (Either Error a)
-evalCloud h m = (runExceptT $ runReaderT (runCloud m) h) `catch`
-    (\e -> transformException (UnknownError . T.pack . show) e >>= return . Left)
 
 
--- | Transform an synchronous exception into an 'Error'. Async exceptions
--- are left untouched and propagated into the 'IO' monad.
-transformException :: (SomeException -> Error) -> SomeException -> IO Error
-transformException f e = case fromException e of
-    Just async -> throwIO (async :: AsyncException)
-    Nothing    -> return $ f e
-
-
--- | Run an 'IO' action inside the 'Cloud' monad, catch all synchronous
--- exceptions and transform them into 'Error's.
-cloudIO :: IO a -> Cloud a
-cloudIO m = do
-    res <- liftIO $ (Right <$> m) `catch`
-        (\e -> transformException (IOError . show) e >>= return . Left)
-    case res of
-        Left e -> throwError e
-        Right  r -> return r
 
 
 -- | apply a given retry policy a finite number of times
 retryBounded :: Monad m => RetryPolicyM m -> Int -> RetryPolicyM m
 retryBounded policy n = policy <> limitRetries n
+
+
+-- evalCloudRecovering policy = recovering policy 
+
+
 
 
 
@@ -152,9 +106,76 @@ post uri heads body = do
   runRequest req
 
 
+getJSON :: FromJSON a => String -> RequestHeaders -> Cloud a
+getJSON url headers = do
+    body <- get url headers ""
+    case eitherDecodeStrict body of
+        Left e -> throwError $ JSONDecodeError e
+        Right r -> return r
 
 
 
+
+
+
+
+
+
+-- | Create a new 'Handle' with sensible defaults. The defaults are such that
+-- the 'Handle' works out of the box when the application is running on an
+-- instance in the Google cloud.
+createHandle :: IO Handle
+createHandle = do
+    manager <- newManager tlsManagerSettings
+    mkHandle manager defaultMetadataToken
+
+
+-- | Create a new 'Handle' with your own configuration options.
+mkHandle :: Manager -> Cloud Token -> IO Handle
+mkHandle manager fetchToken = do
+    token <- newTVarIO Nothing
+    return $ Handle manager token fetchToken
+
+
+
+-- | Fetch the access token for the default service account from the local
+-- metadata server. This only works when the code is running in the Google
+-- cloud and the instance has a services account attached to it.
+defaultMetadataToken :: Cloud Token
+defaultMetadataToken = serviceAccountToken "default"
+
+
+metadataUri :: String
+metadataUri = "http://metadata.google.internal"
+
+projectMetadataUri :: String
+projectMetadataUri = "/computeMetadata/v1/project"
+
+instanceMetadataUri :: String
+instanceMetadataUri = "/computeMetadata/v1/instance"
+
+
+
+-- | Like 'getJSON' but for reading from the metadata server.
+readJSON :: (FromJSON a) => String -> Cloud a
+readJSON key = getJSON (metadataUri ++ key) [("Metadata-Flavor","Google")]
+
+
+
+-- | Fetch an access token for the given service account.
+serviceAccountToken :: String -> Cloud Token
+serviceAccountToken acc = do
+    res <- readJSON (instanceMetadataUri ++ "/service-account/" ++ acc ++ "/token")
+    case res of
+        (Object o) -> case (M.lookup "access_token" o, M.lookup "expires_in" o) of
+            (Just (String value), Just (Number expiresIn)) -> do
+                case toBoundedInteger expiresIn :: Maybe Int of
+                    Nothing -> throwError $ UnknownError "fetchToken: Bad expiration time"
+                    Just i -> do
+                        now <- cloudIO $ getCurrentTime
+                        return $ Token (addUTCTime (fromIntegral i) now) value
+            _ -> throwError $ UnknownError "fetchToken: Could not decode response"
+        _ -> throwError $ UnknownError "fetchToken: Bad resposnse"
 
 
 
