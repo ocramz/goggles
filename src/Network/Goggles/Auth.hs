@@ -36,6 +36,7 @@ import Data.Typeable
 import Data.Keys (gcpUID, gcpPrivateKey, gcpServiceAccountSecret)
 
 import Network.Goggles.Cloud
+import Network.Goggles.Internal.HTTP
 
 
 
@@ -74,50 +75,6 @@ mkContentTypeHeader ct = (hContentType, BS.pack ct)
 
 
 
-runRequest :: Request -> Cloud BS.ByteString
-runRequest req = do
-    manager <- asks hManager
-    cloudIO $ do
-        res <- httpLbs req manager
-        return $ LBS.toStrict $ responseBody res
-
-
-
-get :: String -> RequestHeaders -> BS.ByteString -> Cloud BS.ByteString
-get uri heads body = do
-  req <- cloudIO $ do
-    reqBase <- parseUrlThrow uri
-    return $ reqBase {
-      method = renderStdMethod GET
-    , requestHeaders = heads
-    , requestBody = RequestBodyBS body
-                   }
-  runRequest req
-
-post :: String -> RequestHeaders -> BS.ByteString -> Cloud BS.ByteString
-post uri heads body = do
-  req <- cloudIO $ do
-    reqBase <- parseUrlThrow uri
-    return $ reqBase {
-      method = renderStdMethod POST
-    , requestHeaders = heads
-    , requestBody = RequestBodyBS body
-                   }
-  runRequest req
-
-
-getJSON :: FromJSON a => String -> RequestHeaders -> Cloud a
-getJSON url headers = do
-    body <- get url headers ""
-    case eitherDecodeStrict body of
-        Left e -> throwError $ JSONDecodeError e
-        Right r -> return r
-
-
-
-
-
-
 
 
 
@@ -135,6 +92,8 @@ mkHandle :: Manager -> Cloud Token -> IO Handle
 mkHandle manager fetchToken = do
     token <- newTVarIO Nothing
     return $ Handle manager token fetchToken
+
+
 
 
 
