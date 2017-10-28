@@ -100,7 +100,7 @@ mkHandle manager fetchToken = do
 
 -- | Fetch the access token for the default service account from the local
 -- metadata server. This only works when the code is running in the Google
--- cloud and the instance has a services account attached to it.
+-- cloud and the instance has a service account attached to it.
 defaultMetadataToken :: Cloud Token
 defaultMetadataToken = serviceAccountToken "default"
 
@@ -145,15 +145,15 @@ instanceMetadataUri = "/computeMetadata/v1/instance"
 
 
 -- | Like 'getJSON' but for reading from the metadata server.
-readJSON :: (FromJSON a) => String -> Cloud a
-readJSON key = getJSON (metadataUri ++ key) [("Metadata-Flavor","Google")]
+getMetadataJSON :: FromJSON a => String -> Cloud a
+getMetadataJSON key = getJSON (metadataUri ++ key) [("Metadata-Flavor","Google")]
 
 
 
 -- | Fetch an access token for the given service account.
 serviceAccountToken :: String -> Cloud Token
 serviceAccountToken acc = do
-    res <- readJSON (instanceMetadataUri ++ "/service-account/" ++ acc ++ "/token")
+    res <- getMetadataJSON (instanceMetadataUri ++ "/service-account/" ++ acc ++ "/token")
     case res of
         (Object o) -> case (M.lookup "access_token" o, M.lookup "expires_in" o) of
             (Just (String value), Just (Number expiresIn)) -> do
@@ -230,18 +230,18 @@ instance Exception GCPException
 
 
 
-main :: IO ()
-main = do
-    -- let settings = managerSetProxy
-    --         (proxyEnvironment Nothing)
-    --         defaultManagerSettings
-    man <- newManager defaultManagerSettings-- settings
-    req <- parseRequest "http://httpbin.org/get"
-    -- let req = "http://httpbin.org/get"
-    --         -- Note that the following settings will be completely ignored.
-    --         {
-    --           proxy = Nothing -- Just $ Proxy "localhost" 1234
-    --         }
-    -- httpLbs req man >>= print
-    respBS <- httpLbs req man
-    print $ responseBody respBS -- (decode $ responseBody respBS :: Maybe BS.ByteString)
+-- main :: IO ()
+-- main = do
+--     -- let settings = managerSetProxy
+--     --         (proxyEnvironment Nothing)
+--     --         defaultManagerSettings
+--     man <- newManager defaultManagerSettings-- settings
+--     req <- parseRequest "http://httpbin.org/get"
+--     -- let req = "http://httpbin.org/get"
+--     --         -- Note that the following settings will be completely ignored.
+--     --         {
+--     --           proxy = Nothing -- Just $ Proxy "localhost" 1234
+--     --         }
+--     -- httpLbs req man >>= print
+--     respBS <- httpLbs req man
+--     print $ responseBody respBS -- (decode $ responseBody respBS :: Maybe BS.ByteString)

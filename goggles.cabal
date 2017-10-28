@@ -45,6 +45,9 @@ library
                      , exceptions
                      , filepath
                      , retry
+                     -- * DEBUG
+                     , hspec
+                     , QuickCheck
   
   
 

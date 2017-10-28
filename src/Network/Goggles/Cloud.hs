@@ -1,4 +1,6 @@
 {-# language OverloadedStrings, GeneralizedNewtypeDeriving #-}
+{-# language RankNTypes #-}
+{-# language DeriveFunctor #-}
 module Network.Goggles.Cloud where
 
 
@@ -16,8 +18,8 @@ import Network.HTTP.Client
 import qualified Data.Text as T
 
 data Token = Token
-    { tokenExpiresAt :: !UTCTime
-    , tokenValue     :: !T.Text
+    { tokenExpiresAt :: ! UTCTime
+    , tokenValue     :: ! T.Text
     } deriving (Show)
 
 data Handle = Handle
@@ -33,7 +35,6 @@ data Handle = Handle
 
 
     
-
 data Error
     = UnknownError !T.Text
     | IOError !String
@@ -48,6 +49,9 @@ newtype Cloud a = Cloud
     } deriving (Functor, Applicative, Monad, MonadIO,
         MonadError Error, MonadReader Handle)
 
+
+
+
 instance Alternative Cloud where
     empty = throwError $ UnknownError "empty"
     a <|> b = catchError a (const b)
@@ -58,7 +62,7 @@ evalCloud h m = (runExceptT $ runReaderT (runCloud m) h) `catch`
     (\e -> transformException (UnknownError . T.pack . show) e >>= return . Left)
 
 
--- | Transform an synchronous exception into an 'Error'. Async exceptions
+-- | Transform a synchronous exception into an 'Error'. Async exceptions
 -- are left untouched and propagated into the 'IO' monad.
 transformException :: (SomeException -> Error) -> SomeException -> IO Error
 transformException f e = case fromException e of
