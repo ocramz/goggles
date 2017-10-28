@@ -1,4 +1,5 @@
 {-# language OverloadedStrings, GeneralizedNewtypeDeriving, MultiParamTypeClasses #-}
+
 module Network.Goggles.Auth where
 
 import Data.Monoid
@@ -224,6 +225,8 @@ withGCPCredentials f = do
 
 data GCPException = GCPAuthException String deriving (Show, Typeable)
 instance Exception GCPException
+
+
 
 
 

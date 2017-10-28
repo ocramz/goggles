@@ -29,6 +29,7 @@ library
                      , scientific
                      , attoparsec
                      , aeson
+                     , req
                      , http-client
                      , http-client-tls
                      , http-types
