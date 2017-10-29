@@ -1,5 +1,5 @@
 {-# language OverloadedStrings, GeneralizedNewtypeDeriving, MultiParamTypeClasses #-}
-
+{-# language RankNTypes #-}
 module Network.Goggles.Auth where
 
 import Data.Monoid
@@ -55,8 +55,7 @@ retryBounded policy n = policy <> limitRetries n
 
 
 
-
-
+                   
 
 
 
