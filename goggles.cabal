@@ -24,7 +24,8 @@ library
                        Network.Goggles.Internal.HTTP
                        Network.Goggles.Auth
                        Network.Goggles.Experimental
-  other-modules:       Data.Keys                    
+  other-modules:       Data.Keys
+                       Network.Goggles.Internal.Auth.JWT                   
   build-depends:       base >= 4.7 && < 5
                      , binary
                      , scientific
@@ -37,10 +38,13 @@ library
                      , http-client-tls
                      , http-types
                      , mime-types
+                     , cryptonite
+                     , unix-time
                      , mtl
                      , transformers
                      , text
                      , bytestring
+                     , base64-bytestring
                      , time
                      , stm
                      -- , envy
