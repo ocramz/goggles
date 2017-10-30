@@ -32,7 +32,7 @@ library
                      , aeson
                      , microlens
                      , microlens-aeson
-                     , req
+                     , req >= 0.3
                      , http-client
                      , http-client-tls
                      , http-types
@@ -49,6 +49,8 @@ library
                      , exceptions
                      , filepath
                      , retry
+                     , logging-effect
+                     , data-default
                      -- * DEBUG
                      , hspec
                      , QuickCheck
