@@ -40,7 +40,6 @@ library
                      , mime-types
                      , cryptonite
                      , pem
-                     , certificate
                      , x509
                      , x509-store
                      , unix-time
