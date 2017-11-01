@@ -1,4 +1,5 @@
 {-# language OverloadedStrings, FlexibleContexts #-}
+{-# language RecordWildCards #-}
 module Network.Goggles.Internal.Auth.JWT where
 
 import qualified Data.ByteString            as B
@@ -24,7 +25,11 @@ import Crypto.Random.Types
 import Data.X509 
 import Data.X509.Memory (readKeyFileFromMemory)
 
-import Data.PEM (pemParseBS, pemParseLBS)
+import Data.PEM -- (pemParseBS, pemParseLBS)
+
+import Data.ASN1.Types
+import Data.ASN1.Encoding (decodeASN1')
+import Data.ASN1.BinaryEncoding
 
 
 import Data.Typeable
@@ -72,18 +77,51 @@ toB64 = encode . encodeUtf8
 
 
 
-toPEM :: T.Text -> B8.ByteString
-toPEM k = b1 <> toB64 k <> b2 where
-  b1 = B8.pack "-----BEGIN RSA PRIVATE KEY-----\n"
-  b2 = B8.pack "\n-----END RSA PRIVATE KEY-----\n"
 
 
--- FIXME : why doesn't pemParseBS work with the supplied key?
 pw = do
   Just k <- gcpPrivateKey
-  -- pure $ toPEM k
-  pure $ pemParseBS $ toPEM k
+  pure $ pemParseBS $ toPEM k where
+    toPEM :: T.Text -> B8.ByteString
+    toPEM k = b1 <> toB64 k <> b2 where
+      b1 = B8.pack "-----BEGIN RSA PRIVATE KEY-----\n"
+      b2 = B8.pack "\n-----END RSA PRIVATE KEY-----\n"
 
+
+
+decodeRSAPrivKey bs = pemParseBS bs >>= \pems -> case pems of
+    []           -> Left ("Private key not found: " ++ B8.unpack bs)
+    (_:_:_)      -> Left "Too many private keys"
+    [p@PEM { .. }] ->
+        case pemName of
+            "RSA PRIVATE KEY" -> parseRSA p
+            _                 -> Left "Unknown private key type"
+  where
+    parseRSA  :: PEM -> Either String PrivateKey
+    parseRSA PEM {..} =
+      case decodeASN1' DER pemContent of
+          Left er    -> Left (show er)
+          Right [ Start Sequence
+                , IntVal _version
+                , IntVal public_n
+                , IntVal public_e
+                , IntVal private_d
+                , IntVal private_p
+                , IntVal private_q
+                , IntVal private_dP
+                , IntVal private_dQ
+                , IntVal private_qinv
+                , End Sequence
+                ] -> let public_size = calculateSize public_n
+                         private_pub = PublicKey { .. }
+                     in Right PrivateKey {..}
+          Right _ -> Left ("Invalid ASN1 stream found in PEM. " ++ B8.unpack bs)
+
+calculateSize :: Integer -> Int
+calculateSize = go 1
+  where
+    go i n | 2 ^ (i * 8) > n = i
+           | otherwise       = go (i + 1) n
 
 
 

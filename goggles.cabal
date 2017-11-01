@@ -40,6 +40,8 @@ library
                      , mime-types
                      , cryptonite
                      , pem
+                     , asn1-types
+                     , asn1-encoding
                      , x509
                      , x509-store
                      , unix-time
