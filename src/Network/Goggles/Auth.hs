@@ -35,7 +35,7 @@ import Data.Scientific (toBoundedInteger)
 import qualified Data.HashMap.Strict as M
 import Data.Typeable
 
-import Data.Keys (gcpUID, gcpPrivateKey, gcpServiceAccountSecret)
+import Data.Keys (gcpUID, gcpPrivateKeyRSA, gcpServiceAccountSecret)
 
 import Network.Goggles.Cloud
 import Network.Goggles.Internal.HTTP
@@ -213,14 +213,14 @@ authorizationHeader = do
   
 
 
-withGCPCredentials :: (T.Text -> T.Text -> IO b) -> IO b
-withGCPCredentials f = do
-  uid <- gcpUID 
-  secret <- gcpPrivateKey
-  case (uid, secret) of (Just u, Just s) -> f u s
-                        (Nothing, Just _) -> throwM $ GCPAuthException "GCP private key not found"
-                        (Just _, Nothing) ->  throwM $ GCPAuthException "GCP user id not found"
-                        (Nothing, Nothing) -> throwM $ GCPAuthException "GCP credentials not found"                        
+-- withGCPCredentials :: (T.Text -> T.Text -> IO b) -> IO b
+-- withGCPCredentials f = do
+--   uid <- gcpUID 
+--   secret <- gcpPrivateKeyRSA
+--   case (uid, secret) of (Just u, Just s) -> f u s
+--                         (Nothing, Just _) -> throwM $ GCPAuthException "GCP private key not found"
+--                         (Just _, Nothing) ->  throwM $ GCPAuthException "GCP user id not found"
+--                         (Nothing, Nothing) -> throwM $ GCPAuthException "GCP credentials not found"                        
 
 data GCPException = GCPAuthException String deriving (Show, Typeable)
 instance Exception GCPException
