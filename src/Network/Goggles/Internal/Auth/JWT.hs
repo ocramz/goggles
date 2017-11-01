@@ -23,10 +23,6 @@ import Crypto.PubKey.RSA.Types
 import Crypto.Random.Types
 -- import Crypto.Cipher.Types
 
-
--- import Data.PEM -- (pemParseBS, pemParseLBS)
-
-
 import Data.Typeable
 
 import Data.Keys
@@ -56,7 +52,19 @@ getSignedJWT iss msub scs mxt pk = do
   if (xt<1 || xt>3600) then (return $ Left $ BadExpirationTime $ unwords ["Bad expiration time", show xt]) else
     do 
       t <- liftIO getUnixTime
-      let i = header <> "." <> toB64 ("{\"iss\":\"" <> iss <> "\"," <> maybe T.empty (\e -> "\"sub\":\"" <> e <> "\",") msub <> "\"scope\":\"" <> T.intercalate " " scs <> "\",\"aud\\\":\"https://www.googleapis.com/oauth2/v4/token\",\"ex\\p\":" <> toT (utSeconds t + CTime xt) <> ",\"iat\":" <> toT (utSeconds t) <> "}")
+      let i = header <>
+              "." <>
+              toB64 ("{\"iss\":\"" <>
+                     iss <>
+                     "\"," <>
+                     maybe T.empty (\e -> "\"sub\":\"" <> e <> "\",") msub <>
+                     "\"scope\":\"" <>
+                     T.intercalate " " scs <>
+                     "\",\"aud\\\":\"https://www.googleapis.com/oauth2/v4/token\",\"ex\\p\":" <>
+                     toT (utSeconds t + CTime xt) <>
+                     ",\"iat\":" <>
+                     toT (utSeconds t) <>
+                     "}")
       signed <- signSafer (Just SHA256) pk i
       case signed of Left e ->
                        return $ Left (CryptoSignError $ unwords ["RSA signing error: ", show e])

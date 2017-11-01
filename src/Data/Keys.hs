@@ -36,11 +36,10 @@ parseSecrets = do
     Left e -> error e
     Right x -> return $ M.fromList x
 
--- gcpUID, gcpPrivateKey, gcpServiceAccountSecret :: IO (Maybe T.Text)
+gcpUID, gcpServiceAccountSecret :: IO (Maybe T.Text)
 gcpUID = do
   ma <- parseSecrets
   return $ M.lookup "GCS_CLIENT_EMAIL" ma
-
 gcpServiceAccountSecret = do 
   ma <- parseSecrets
   return $ M.lookup "GCP_SERVICE_ACCOUNT_SECRET" ma
