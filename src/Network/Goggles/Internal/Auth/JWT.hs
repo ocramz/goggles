@@ -74,8 +74,8 @@ toB64 = encode . encodeUtf8
 
 toPEM :: T.Text -> B8.ByteString
 toPEM k = b1 <> toB64 k <> b2 where
-  b1 = B8.pack "----- BEGIN PRIVATE KEY -----\n"
-  b2 = B8.pack "----- END PRIVATE KEY -----\n"
+  b1 = B8.pack "-----BEGIN RSA PRIVATE KEY-----\n"
+  b2 = B8.pack "\n-----END RSA PRIVATE KEY-----\n"
 
 
 -- FIXME : why doesn't pemParseBS work with the supplied key?
