@@ -1,15 +1,18 @@
 {-# language OverloadedStrings, FlexibleContexts #-}
 {-# language RecordWildCards #-}
-module Network.Goggles.Internal.Auth.JWT where
+module Network.Goggles.Internal.Auth.JWT (getSignedJWT, JWTError(..)) where
 
 import qualified Data.ByteString            as B
-import qualified Data.ByteString.Lazy            as LB
+-- import qualified Data.ByteString.Lazy            as LB
 import qualified Data.ByteString.Char8            as B8
 import           Data.ByteString.Base64.URL (encode)
-import           Data.Maybe                 (fromMaybe)
-import           Data.Monoid                ((<>))
 import qualified Data.Text                  as T
 import           Data.Text.Encoding         (encodeUtf8)
+
+
+import           Data.Maybe                 (fromMaybe)
+import           Data.Monoid                ((<>))
+
 import           Data.UnixTime              (getUnixTime, utSeconds)
 import           Foreign.C.Types
 
@@ -25,7 +28,7 @@ import Crypto.Random.Types
 
 import Data.Typeable
 
-import Data.Keys
+
 
 
 
@@ -60,7 +63,7 @@ getSignedJWT iss msub scs mxt pk = do
                      maybe T.empty (\e -> "\"sub\":\"" <> e <> "\",") msub <>
                      "\"scope\":\"" <>
                      T.intercalate " " scs <>
-                     "\",\"aud\\\":\"https://www.googleapis.com/oauth2/v4/token\",\"ex\\p\":" <>
+                     "\",\"aud\":\"https://www.googleapis.com/oauth2/v4/token\",\"exp\":" <>
                      toT (utSeconds t + CTime xt) <>
                      ",\"iat\":" <>
                      toT (utSeconds t) <>
@@ -84,13 +87,6 @@ toB64 = encode . encodeUtf8
 
 
   
-
-
-
-
-
-
-    
 
 
 

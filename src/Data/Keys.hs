@@ -3,8 +3,9 @@ module Data.Keys
   (gcpUID
   , gcpPrivateKeyRSA
   , gcpServiceAccountSecret
+  , gcpClientEmail
   ) where
-
+ 
 import Data.Monoid 
 
 import qualified Data.Text as T
@@ -36,13 +37,16 @@ parseSecrets = do
     Left e -> error e
     Right x -> return $ M.fromList x
 
-gcpUID, gcpServiceAccountSecret :: IO (Maybe T.Text)
+gcpUID, gcpServiceAccountSecret, gcpClientEmail :: IO (Maybe T.Text)
 gcpUID = do
   ma <- parseSecrets
   return $ M.lookup "GCS_CLIENT_EMAIL" ma
 gcpServiceAccountSecret = do 
   ma <- parseSecrets
   return $ M.lookup "GCP_SERVICE_ACCOUNT_SECRET" ma
+gcpClientEmail = do
+  ma <- parseSecrets
+  return $ M.lookup "GCP_CLIENT_EMAIL" ma
   
   
 validName :: A.Parser T.Text
@@ -50,18 +54,12 @@ validName = A.takeWhile1 (\c ->
                             isAlphaNum c ||
                             c == '_')
 
-quotedString :: A.Parser T.Text
-quotedString = do
-  _ <- "\""
-  x <- A.takeTill (\c -> c == '\"')
-  _ <- "\""
-  return x
 
 kvPair :: A.Parser (T.Text, T.Text)
 kvPair = do
   k <- validName
   _ <- "="
-  v <- quotedString
+  v <- A.takeTill A.isEndOfLine 
   return (k, v)
 
 
@@ -69,12 +67,12 @@ kvPair = do
 gcpPrivateKeyRSA :: IO (Either String PrivateKey)
 gcpPrivateKeyRSA = do 
   ma <- parseSecrets
-  case M.lookup "GCS_PRIVATE_KEY" ma of
+  case M.lookup "GCP_PRIVATE_KEY" ma of
     Just k ->  
       case parseRSAPrivateKey k of [] -> return $ Left "Cannot parse RSA key"
                                    (PrivKeyRSA ok:_) -> return $ Right ok
                                    _ -> return $ Left "Found key is not a RSA private key"
-    Nothing -> return $ Left "No RSA key called GCS_PRIVATE_KEY found"
+    Nothing -> return $ Left "No RSA key called GCP_PRIVATE_KEY found"
 
 parseRSAPrivateKey :: T.Text -> [PrivKey]
 parseRSAPrivateKey = readKeyFileFromMemory . withPEMheaders encodeUtf8  
