@@ -7,7 +7,9 @@ import Data.Keys (gcpPrivateKeyRSA, gcpClientEmail)
 
 import Network.Mime
 import Network.HTTP.Req
+
 import qualified Network.HTTP.Client as H -- (RequestBody(..))
+import qualified Network.HTTP.Client.TLS as H (tlsManagerSettings)
 import qualified Network.HTTP.Types as H
 
 import Network.Goggles.Internal.Auth.JWT
@@ -61,6 +63,26 @@ testMain = do
   print $ H.queryString r
   print $ H.requestHeaders r
   print $ payload -- show $ H.requestBody r
+
+
+
+
+testMain2 = do
+  manager <- H.newManager H.tlsManagerSettings
+  payload <- mkRequestPayload scopes
+  initialRequest <- H.parseRequest "https://www.googleapis.com/oauth2/v4/token"
+  let request = initialRequest {
+        H.method = "POST",
+        H.requestBody = H.RequestBodyLBS $ J.encode payload,
+        H.requestHeaders = [(H.hContentType, B8.pack "application/x-www-form-urlencoded")]
+        }
+  -- return request
+  response <- H.httpLbs request manager
+  -- return request
+  print $ H.responseBody response
+
+
+
   
 
 scopes :: [T.Text]
@@ -79,21 +101,21 @@ mkRequestPayload scps = do
       jwt <- encodeBearerJWT serv opts
       return $ object [
                      "assertion" .= B8.unpack jwt
-                     , "grant_type" .= urlEncode "urn:ietf:params:oauth:grant-type:jwt-bearer"
+                     , "grant_type" .= ("urn:ietf:params:oauth:grant-type:jwt-bearer" :: String)
                       ]
     (_, Left e) -> error e
     (_, _) -> error "Error!"
 
 
-testRequestPayload = do
-  clientEmail <- gcpClientEmail
-  privateKey <- gcpPrivateKeyRSA
-  case (clientEmail, privateKey) of
-    (Just ce, Right pk) -> do
-      let serv = ServiceAccount pk ce Nothing
-          opts = TokenOptions scopes (Just 1200)
-      jwt <- encodeBearerJWT serv opts
-      return $ J.encode $ object [
-                     "assertion" .= B8.unpack jwt
-                     , "grant_type" .= urlEncode "urn:ietf:params:oauth:grant-type:jwt-bearer"
-                      ]      
+-- testRequestPayload = do
+--   clientEmail <- gcpClientEmail
+--   privateKey <- gcpPrivateKeyRSA
+--   case (clientEmail, privateKey) of
+--     (Just ce, Right pk) -> do
+--       let serv = ServiceAccount pk ce Nothing
+--           opts = TokenOptions scopes (Just 1200)
+--       jwt <- encodeBearerJWT serv opts
+--       return $ object [
+--                      "assertion" .= B8.unpack jwt
+--                      , "grant_type" .= urlEncode "urn:ietf:params:oauth:grant-type:jwt-bearer"
+--                       ]      
