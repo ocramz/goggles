@@ -7,7 +7,8 @@ import Data.Keys (gcpPrivateKeyRSA, gcpClientEmail)
 
 import Network.Mime
 import Network.HTTP.Req
-import Network.HTTP.Client (RequestBody(..))
+import qualified Network.HTTP.Client as H -- (RequestBody(..))
+import qualified Network.HTTP.Types as H
 
 import Network.Goggles.Internal.Auth.JWT (getSignedJWT, JWTError)
 
@@ -31,36 +32,65 @@ instance MonadHttp IO where
 newtype ReqBodyJsonUrlEncoded a = ReqBodyJsonUE a
 
 instance J.ToJSON a => HttpBody (ReqBodyJsonUrlEncoded a) where
-  getRequestBody (ReqBodyJsonUE a) = RequestBodyLBS (J.encode a)
-  getRequestContentType _ = pure "application/x-www-form-urlencoded; charset=utf-8"
+  getRequestBody (ReqBodyJsonUE a) = H.RequestBodyLBS (J.encode a)
+  getRequestContentType _ = pure "application/x-www-form-urlencoded; charset=utf-8\n"
 
 
-main = do
-  payload <- mkRequestPayload
+mainTokenExchange = do
+  payload <- mkRequestPayload scopes
   r <- req POST 
     (https "www.googleapis.com" /: "oauth2" /: "v4" /: "token") 
     (ReqBodyJsonUE payload) 
     jsonResponse 
-    mempty       
+    mempty
   print (responseBody r :: J.Value)
 
+
+
+
+-- testMain = do
+--   payload <- mkRequestPayload scopes
+--   r <- req' POST 
+--     (https "www.googleapis.com" /: "oauth2" /: "v4" /: "token") 
+--     (ReqBodyJsonUE payload) 
+--     mempty
+--     (\request _ -> pure request)
+--   print $ H.queryString r
+--   print $ H.requestHeaders r
+--   print $ payload -- show $ H.requestBody r
+  
 
 scopes :: [T.Text]
 scopes = ["https://www.googleapis.com/auth/cloud-platform"]
 
-mkRequestPayload :: IO J.Value
-mkRequestPayload = do
+mkRequestPayload :: [T.Text] -> IO J.Value
+mkRequestPayload scps = do
   clientEmail <- gcpClientEmail
   privateKey <- gcpPrivateKeyRSA
   case (clientEmail, privateKey) of
     (Just ce, Right pk) -> do
-      jwtE <- getSignedJWT ce Nothing scopes Nothing pk
+      jwtE <- getSignedJWT ce Nothing scps Nothing pk
       case jwtE of Right jwt ->
                      return $ object [
                      "assertion" .= B8.unpack jwt
-                     -- , "grant_type" .= urlEncode "urn:ietf:params:oauth:grant-type:jwt-bearer"
-                     , "grant_type" .= ("urn:ietf:params:oauth:grant-type:jwt-bearer" :: String)
+                     , "grant_type" .= urlEncode "urn:ietf:params:oauth:grant-type:jwt-bearer"
+                     -- , "grant_type" .= ("urn:ietf:params:oauth:grant-type:jwt-bearer" :: String)
                      -- , "grant_type" .= (B8.unpack $ encodeUtf8 ("urn:ietf:params:oauth:grant-type:jwt-bearer" :: T.Text))
                      ]
                    Left e -> error $ show e
     (_, Left e) -> error e
+
+
+-- testRequestPayload = do
+--   clientEmail <- gcpClientEmail
+--   privateKey <- gcpPrivateKeyRSA
+--   case (clientEmail, privateKey) of
+--     (Just ce, Right pk) -> do
+--       jwtE <- getSignedJWT ce Nothing scopes Nothing pk
+--       case jwtE of Right jwt ->
+--                      return $ J.encode $ object [
+--                      "assertion" .= B8.unpack jwt
+--                      , "grant_type" .= urlEncode "urn:ietf:params:oauth:grant-type:jwt-bearer"
+--                      -- , "grant_type" .= ("urn:ietf:params:oauth:grant-type:jwt-bearer" :: String)
+--                      -- , "grant_type" .= (B8.unpack $ encodeUtf8 ("urn:ietf:params:oauth:grant-type:jwt-bearer" :: T.Text))
+                     -- ]
