@@ -1,16 +1,18 @@
 {-# language OverloadedStrings, FlexibleContexts #-}
 {-# language RecordWildCards #-}
-module Network.Goggles.Internal.Auth.JWT (getSignedJWT, JWTError(..)) where
+module Network.Goggles.Internal.Auth.JWT (encodeBearerJWT, JWTError(..), ServiceAccount(..), TokenOptions(..)) where
 
 import qualified Data.ByteString            as B
--- import qualified Data.ByteString.Lazy            as LB
+import qualified Data.ByteString.Lazy            as LB
 import qualified Data.ByteString.Char8            as B8
-import           Data.ByteString.Base64.URL (encode)
+-- import           Data.ByteString.Base64.URL (encode)
 import qualified Data.Text                  as T
-import           Data.Text.Encoding         (encodeUtf8)
+-- import           Data.Text.Encoding         (encodeUtf8)
 
+import qualified Data.Aeson as J
+import Data.Aeson ((.=))
+import qualified Data.Aeson.Types as J (Pair)
 
-import           Data.Maybe                 (fromMaybe)
 import           Data.Monoid                ((<>))
 
 import           Data.UnixTime              (getUnixTime, utSeconds)
@@ -19,6 +21,7 @@ import           Foreign.C.Types
 import Control.Exception
 import Control.Monad.Except
 import Control.Monad.Trans (liftIO)
+import Control.Monad.Catch
 
 import Crypto.Hash.Algorithms
 import Crypto.PubKey.RSA.PKCS15 (signSafer)
@@ -28,68 +31,78 @@ import Crypto.Random.Types
 
 import Data.Typeable
 
+import Data.ByteArray
+import Data.ByteArray.Encoding
 
-
-
+-- import Network.HTTP.Types
 
 
 data JWTError =
     BadExpirationTime !String
-  | CryptoSignError !String deriving (Show, Typeable)
+  | CryptoSignError !String
+  -- | TokenRefreshError Int !String
+  deriving (Show, Typeable)
 instance Exception JWTError where
 
 
 
--- | SHA256withRSA (also known as RSASSA-PKCS1-V1_5-SIGN with the SHA-256 hash function)
--- adapted from http://hackage.haskell.org/package/google-oauth2-jwt to use `cryptonite` rather than OpenSSL
--- original : https://hackage.haskell.org/package/google-oauth2-jwt-0.2.2/docs/src/Network-Google-OAuth2-JWT.html#getSignedJWT
-getSignedJWT :: (Integral a, MonadRandom m, MonadIO m) =>
-       T.Text           -- ^ email address of the service account (ending in .gserviceaccount.com ).
-    -> Maybe T.Text  -- ^ email address of the user for which the application is requesting delegated access.
-    -> [T.Text]   -- ^ authentication scopes that the application requests.
-    -> Maybe a    -- ^ expiration time (maximum and default value is an hour, 3600).
-    -> PrivateKey  -- ^ private key gotten from the PEM string obtained from the Google API Console.
-    -> m (Either JWTError B.ByteString)
-getSignedJWT iss msub scs mxt pk = do
-  let xt = fromIntegral (fromMaybe 3600 mxt)
-  if (xt<1 || xt>3600) then (return $ Left $ BadExpirationTime $ unwords ["Bad expiration time", show xt]) else
-    do 
-      t <- liftIO getUnixTime
-      let i = header <>
-              "." <>
-              toB64 ("{\"iss\":\"" <>
-                     iss <>
-                     "\"," <>
-                     maybe T.empty (\e -> "\"sub\":\"" <> e <> "\",") msub <>
-                     "\"scope\":\"" <>
-                     T.intercalate " " scs <>
-                     "\",\"aud\":\"https://www.googleapis.com/oauth2/v4/token\",\"exp\":" <>
-                     toT (utSeconds t + CTime xt) <>
-                     ",\"iat\":" <>
-                     toT (utSeconds t) <>
-                     "}")
-      signed <- signSafer (Just SHA256) pk i
-      case signed of Left e ->
-                       return $ Left (CryptoSignError $ unwords ["RSA signing error: ", show e])
-                     Right s -> return $ Right $ i <> "." <> encode s
-  where
-    toT = T.pack . show    
-    header = toB64 "{\"alg\":\"RS256\",\"typ\":\"JWT\"}"
-    -- Base64url-encoded header : "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9"
+data ServiceAccount = ServiceAccount {
+    _servicePrivateKey :: PrivateKey  -- ^ private key gotten from the PEM string obtained from the Google API Console
+  , _serviceEmail :: T.Text    -- ^ email address of the service account (ending in .gserviceaccount.com )
+  , _serviceAccountUser :: Maybe T.Text -- ^ email address of the user for which the application is requesting delegated access
+                                     } deriving (Eq, Show)
 
--- | Base64url encoding 
-toB64 :: T.Text -> B.ByteString  
-toB64 = encode . encodeUtf8
-
-
-
-
-
-
+data TokenOptions = TokenOptions {
+    _tokenOptionsScopes :: [T.Text] -- ^ authentication scopes that the application requests
+  , _tokenValiditySeconds :: Maybe Int -- ^ expiration time (maximum and default value is an hour, 3600)
+                                 } deriving (Eq, Show)
   
 
 
+tokenURL :: T.Text
+tokenURL = "https://www.googleapis.com/oauth2/v4/token"
 
 
+--
+-- adapted from https://github.com/brendanhay/gogol/blob/master/gogol/src/Network/Google/Auth/ServiceAccount.hs
+encodeBearerJWT :: (MonadThrow m, MonadRandom m, MonadIO m) => ServiceAccount -> TokenOptions -> m B8.ByteString
+encodeBearerJWT s opts = do
+    i <- input <$> liftIO getUnixTime
+    r <- signSafer (Just SHA256) (_servicePrivateKey s) i
+    either failure (pure . concat' i) r
+  where
+    concat' i x = i <> "." <> signature (base64 x)
+    failure e = throwM $ CryptoSignError (show e)
+    signature bs = case B8.unsnoc bs of
+            Nothing         -> mempty
+            Just (bs', x)
+                | x == '='  -> bs'
+                | otherwise -> bs
+    input t = header <> "." <> payload
+      where
+        valids = fromIntegral $ maybeDefault (\t' -> t'<0 || t'>3600) 3600 (_tokenValiditySeconds opts)
+        header = base64Encode
+            [ "alg" .= ("RS256" :: T.Text)
+            , "typ" .= ("JWT"   :: T.Text) ]
+        payload = base64Encode $
+            [ "aud"   .= tokenURL
+            , "scope" .= (T.intercalate " " $ _tokenOptionsScopes opts)
+            , "iat"   .= toT (utSeconds t)
+            , "exp"   .= toT (CTime valids + utSeconds t) -- (n + seconds maxTokenLifetime)
+            , "iss"   .= _serviceEmail s
+            ] <> maybe [] (\sub -> ["sub" .= sub]) (_serviceAccountUser s)
+        toT = T.pack . show
 
 
+base64Encode :: [J.Pair] -> B8.ByteString
+base64Encode = base64 . LB.toStrict . J.encode . J.object
+
+base64 :: ByteArray a => a -> B8.ByteString
+base64 = convertToBase Base64URLUnpadded
+
+-- -- textBody = RequestBodyBS . encodeUtf8
+
+maybeDefault :: (b -> Bool) -> b -> Maybe b -> b
+maybeDefault q d = maybe d ff where
+  ff t | q t = d
+       | otherwise = t
