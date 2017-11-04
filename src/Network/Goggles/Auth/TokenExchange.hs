@@ -1,4 +1,4 @@
-{-# language OverloadedStrings #-}
+{-# language OverloadedStrings, DeriveGeneric #-}
 module Network.Goggles.Auth.TokenExchange where
 
 import Data.Monoid ((<>))
@@ -23,8 +23,10 @@ import Control.Monad.Catch
 import Control.Exception (throwIO)
 
 import qualified Data.Aeson as J
+import qualified Data.Aeson.Types as J
 import qualified Data.Text as T
 import Data.Aeson (object, (.=), (.:))
+
 
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.ByteString.Char8            as B8
@@ -37,16 +39,21 @@ import Crypto.Random.Types
 instance MonadHttp IO where
   handleHttpException = throwIO
 
--- | we need a custom content type (`application/...`) associated with this type of JSON payload
-newtype ReqBodyLBUrlEncoded a = ReqBodyLbUE a
+
+data OAuth2Token = OAuth2Token {
+    _oaTokenExpirySeconds :: Int
+  , _oaTokenString :: T.Text
+  , _oaTokenType :: T.Text } deriving (Eq, Show, Generic)
 
 
+instance J.FromJSON OAuth2Token where
+  parseJSON = J.withObject "OAuth2Token" $ \js -> OAuth2Token
+    <$> js .: "expires_in"
+    <*> js .: "access_token"
+    <*> js .: "token_type"
 
-instance J.ToJSON a => HttpBody (ReqBodyLBUrlEncoded a) where
-  getRequestBody (ReqBodyLbUE a) = H.RequestBodyLBS (J.encode a)
-  getRequestContentType _ = pure "application/x-www-form-urlencoded; charset=utf-8\n"
 
-
+testMain1 :: IO OAuth2Token
 testMain1 = do
   payload <- mkRequestPayload scopes
   r <- req POST 
@@ -54,10 +61,9 @@ testMain1 = do
     (ReqBodyLbs payload) 
     jsonResponse 
     (header "Content-Type" "application/x-www-form-urlencoded; charset=utf-8")
-  print (responseBody r :: J.Value)
+  return (responseBody r :: OAuth2Token)
 
-
-
+  
 
 testMain2 = do
   manager <- H.newManager H.tlsManagerSettings
