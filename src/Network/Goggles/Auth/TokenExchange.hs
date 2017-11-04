@@ -1,6 +1,8 @@
 {-# language OverloadedStrings #-}
 module Network.Goggles.Auth.TokenExchange where
 
+import Data.Monoid ((<>))
+
 import Network.Utils.HTTP (urlEncode)
 
 import Data.Keys (gcpPrivateKeyRSA, gcpClientEmail)
@@ -20,7 +22,7 @@ import Control.Exception (throwIO)
 
 import qualified Data.Aeson as J
 import qualified Data.Text as T
-import Data.Aeson (object, (.=))
+import Data.Aeson (object, (.=), (.:))
 
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.ByteString.Char8            as B8
@@ -45,25 +47,10 @@ mainTokenExchange = do
   payload <- mkRequestPayload scopes
   r <- req POST 
     (https "www.googleapis.com" /: "oauth2" /: "v4" /: "token") 
-    (ReqBodyJsonUE payload) 
+    (ReqBodyLbs payload) 
     jsonResponse 
     mempty
   print (responseBody r :: J.Value)
-
-
-
-
-testMain = do
-  payload <- mkRequestPayload scopes
-  r <- req' POST 
-    (https "www.googleapis.com" /: "oauth2" /: "v4" /: "token") 
-    (ReqBodyJsonUE payload) 
-    mempty
-    (\request _ -> pure request)
-  print $ H.queryString r
-  print $ H.requestHeaders r
-  print $ payload -- show $ H.requestBody r
-
 
 
 
@@ -71,15 +58,16 @@ testMain2 = do
   manager <- H.newManager H.tlsManagerSettings
   payload <- mkRequestPayload scopes
   initialRequest <- H.parseRequest "https://www.googleapis.com/oauth2/v4/token"
-  let request = initialRequest {
-        H.method = "POST",
-        H.requestBody = H.RequestBodyLBS $ J.encode payload,
-        H.requestHeaders = [(H.hContentType, B8.pack "application/x-www-form-urlencoded")]
+  let r = initialRequest {
+        H.method = "POST"
+      , H.requestBody = H.RequestBodyLBS $ payload
+      , H.requestHeaders = [(H.hContentType, B8.pack "application/x-www-form-urlencoded")]
         }
-  -- return request
-  response <- H.httpLbs request manager
-  -- return request
-  print $ H.responseBody response
+  -- print (H.requestBody request)
+  -- let (H.RequestBodyLBS rb) = H.requestBody r
+  -- print rb
+  response <- H.httpLbs r manager
+  print (J.decode (H.responseBody response) :: Maybe J.Value)
 
 
 
@@ -89,22 +77,38 @@ scopes :: [T.Text]
 scopes = ["https://www.googleapis.com/auth/cloud-platform"]
 
 
-mkRequestPayload
-  :: (MonadIO m, MonadThrow m, MonadRandom m) => [T.Text] -> m J.Value
+mkRequestPayload :: (MonadIO m, MonadThrow m, MonadRandom m) => [T.Text] -> m LB.ByteString
 mkRequestPayload scps = do
   clientEmail <- liftIO $ gcpClientEmail
   privateKey <- liftIO $ gcpPrivateKeyRSA
   case (clientEmail, privateKey) of
     (Just ce, Right pk) -> do
       let serv = ServiceAccount pk ce Nothing
-          opts = TokenOptions scps (Just 3600)
+          opts = TokenOptions scps
       jwt <- encodeBearerJWT serv opts
-      return $ object [
-                     "assertion" .= B8.unpack jwt
-                     , "grant_type" .= ("urn:ietf:params:oauth:grant-type:jwt-bearer" :: String)
-                      ]
+      return $ LB.fromStrict $
+                   "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer"
+                <> "&assertion="
+                <> jwt 
     (_, Left e) -> error e
     (_, _) -> error "Error!"
+
+
+
+
+
+-- testMain = do
+--   payload <- mkRequestPayload scopes
+--   r <- req' POST 
+--     (https "www.googleapis.com" /: "oauth2" /: "v4" /: "token") 
+--     (ReqBodyJsonUE payload) 
+--     mempty
+--     (\request _ -> pure request)
+--   print $ H.queryString r
+--   print $ H.requestHeaders r
+--   print $ payload -- show $ H.requestBody r
+
+
 
 
 -- testRequestPayload = do

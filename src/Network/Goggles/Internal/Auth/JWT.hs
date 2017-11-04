@@ -13,9 +13,9 @@ import qualified Data.Aeson as J
 import Data.Aeson ((.=))
 import qualified Data.Aeson.Types as J (Pair)
 
-import           Data.Monoid                ((<>))
+import           Data.Monoid ((<>))
 
-import           Data.UnixTime              (getUnixTime, utSeconds)
+import           Data.UnixTime (getUnixTime, utSeconds, UnixTime(..))
 import           Foreign.C.Types
 
 import Control.Exception
@@ -40,7 +40,6 @@ import Data.ByteArray.Encoding
 data JWTError =
     BadExpirationTime !String
   | CryptoSignError !String
-  -- | TokenRefreshError Int !String
   deriving (Show, Typeable)
 instance Exception JWTError where
 
@@ -54,18 +53,17 @@ data ServiceAccount = ServiceAccount {
 
 data TokenOptions = TokenOptions {
     _tokenOptionsScopes :: [T.Text] -- ^ authentication scopes that the application requests
-  , _tokenValiditySeconds :: Maybe Int -- ^ expiration time (maximum and default value is an hour, 3600)
                                  } deriving (Eq, Show)
   
 
 
-tokenURL :: T.Text
-tokenURL = "https://www.googleapis.com/oauth2/v4/token"
 
-
---
+-- | Returns a bytestring with the signed JWT-encoded token request. 
 -- adapted from https://github.com/brendanhay/gogol/blob/master/gogol/src/Network/Google/Auth/ServiceAccount.hs
-encodeBearerJWT :: (MonadThrow m, MonadRandom m, MonadIO m) => ServiceAccount -> TokenOptions -> m B8.ByteString
+encodeBearerJWT :: (MonadThrow m, MonadRandom m, MonadIO m) =>
+                   ServiceAccount
+                -> TokenOptions
+                -> m B8.ByteString
 encodeBearerJWT s opts = do
     i <- input <$> liftIO getUnixTime
     r <- signSafer (Just SHA256) (_servicePrivateKey s) i
@@ -80,15 +78,14 @@ encodeBearerJWT s opts = do
                 | otherwise -> bs
     input t = header <> "." <> payload
       where
-        valids = fromIntegral $ maybeDefault (\t' -> t'<0 || t'>3600) 3600 (_tokenValiditySeconds opts)
         header = base64Encode
             [ "alg" .= ("RS256" :: T.Text)
             , "typ" .= ("JWT"   :: T.Text) ]
         payload = base64Encode $
-            [ "aud"   .= tokenURL
+            [ "aud"   .= T.pack "https://www.googleapis.com/oauth2/v4/token" 
             , "scope" .= (T.intercalate " " $ _tokenOptionsScopes opts)
             , "iat"   .= toT (utSeconds t)
-            , "exp"   .= toT (CTime valids + utSeconds t) -- (n + seconds maxTokenLifetime)
+            , "exp"   .= toT (CTime 3600 + utSeconds t)
             , "iss"   .= _serviceEmail s
             ] <> maybe [] (\sub -> ["sub" .= sub]) (_serviceAccountUser s)
         toT = T.pack . show
@@ -106,3 +103,5 @@ maybeDefault :: (b -> Bool) -> b -> Maybe b -> b
 maybeDefault q d = maybe d ff where
   ff t | q t = d
        | otherwise = t
+
+
