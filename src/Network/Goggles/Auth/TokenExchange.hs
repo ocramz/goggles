@@ -3,6 +3,8 @@ module Network.Goggles.Auth.TokenExchange where
 
 import Data.Monoid ((<>))
 
+import GHC.Generics
+
 import Network.Utils.HTTP (urlEncode)
 
 import Data.Keys (gcpPrivateKeyRSA, gcpClientEmail)
@@ -36,21 +38,24 @@ instance MonadHttp IO where
   handleHttpException = throwIO
 
 -- | we need a custom content type (`application/...`) associated with this type of JSON payload
-newtype ReqBodyJsonUrlEncoded a = ReqBodyJsonUE a
+newtype ReqBodyLBUrlEncoded a = ReqBodyLbUE a
 
-instance J.ToJSON a => HttpBody (ReqBodyJsonUrlEncoded a) where
-  getRequestBody (ReqBodyJsonUE a) = H.RequestBodyLBS (J.encode a)
+
+
+instance J.ToJSON a => HttpBody (ReqBodyLBUrlEncoded a) where
+  getRequestBody (ReqBodyLbUE a) = H.RequestBodyLBS (J.encode a)
   getRequestContentType _ = pure "application/x-www-form-urlencoded; charset=utf-8\n"
 
 
-mainTokenExchange = do
+testMain1 = do
   payload <- mkRequestPayload scopes
   r <- req POST 
     (https "www.googleapis.com" /: "oauth2" /: "v4" /: "token") 
     (ReqBodyLbs payload) 
     jsonResponse 
-    mempty
+    (header "Content-Type" "application/x-www-form-urlencoded; charset=utf-8")
   print (responseBody r :: J.Value)
+
 
 
 
@@ -87,7 +92,8 @@ mkRequestPayload scps = do
           opts = TokenOptions scps
       jwt <- encodeBearerJWT serv opts
       return $ LB.fromStrict $
-                   "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer"
+                   "grant_type="
+                <> (B8.pack $ urlEncode "urn:ietf:params:oauth:grant-type:jwt-bearer")
                 <> "&assertion="
                 <> jwt 
     (_, Left e) -> error e
