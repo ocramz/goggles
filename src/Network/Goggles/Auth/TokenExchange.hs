@@ -33,13 +33,14 @@ import qualified Data.ByteString.Lazy as LB
 import qualified Data.ByteString.Char8            as B8
 -- import           Data.ByteString.Base64.URL (encode)
 import qualified Data.Text as T
-import           Data.Text.Encoding         (encodeUtf8)
+import qualified Data.Text.Encoding as T (encodeUtf8, decodeUtf8)
 import Crypto.Random.Types
 
 import qualified Data.Attoparsec.ByteString.Lazy as A
 
 data TokenExchangeException =
-  NotFound !String
+    NotFound !String
+  | KeysNotFound !String
   deriving (Show, Typeable)
 instance Exception TokenExchangeException
   
@@ -59,10 +60,29 @@ instance J.FromJSON OAuth2Token where
     <$> js .: "expires_in"
     <*> js .: "access_token"
     <*> js .: "token_type"
+
+get :: MonadHttp m => OAuth2Token -> T.Text -> m LB.ByteString
+get (OAuth2Token _ tok _) endpoint = do
+  resp <- req GET
+    (https "www.googleapis.com" /: endpoint)
+    NoReqBody
+    lbsResponse
+    (oAuth2Bearer $ T.encodeUtf8 tok)
+  return $ responseBody resp
+
+post :: MonadHttp m => OAuth2Token -> T.Text -> LB.ByteString -> m LB.ByteString
+post (OAuth2Token _ tok _) endpoint payload = do
+  resp <- req POST
+    (https "www.googleapis.com" /: endpoint)
+    (ReqBodyLbs payload)
+    lbsResponse
+    (oAuth2Bearer $ T.encodeUtf8 tok)
+  return $ responseBody resp
+  
   
 getOAuth2Token :: (MonadIO m, MonadThrow m, MonadRandom m, MonadHttp m) => m OAuth2Token
 getOAuth2Token = do
-  payload <- mkRequestPayload scopes
+  payload <- signedRequestPayload scopes
   r <- req POST 
     (https "www.googleapis.com" /: "oauth2" /: "v4" /: "token")
     (ReqBodyLbs payload)
@@ -77,8 +97,8 @@ scopes :: [T.Text]
 scopes = ["https://www.googleapis.com/auth/cloud-platform"]
 
 
-mkRequestPayload :: (MonadIO m, MonadThrow m, MonadRandom m) => [T.Text] -> m LB.ByteString
-mkRequestPayload scps = do
+signedRequestPayload :: (MonadIO m, MonadThrow m, MonadRandom m) => [T.Text] -> m LB.ByteString
+signedRequestPayload scps = do
   clientEmail <- liftIO $ gcpClientEmail
   privateKey <- liftIO $ gcpPrivateKeyRSA
   case (clientEmail, privateKey) of
@@ -91,8 +111,7 @@ mkRequestPayload scps = do
                 <> (B8.pack $ urlEncode "urn:ietf:params:oauth:grant-type:jwt-bearer")
                 <> "&assertion="
                 <> jwt 
-    (_, Left e) -> error e
-    (_, _) -> error "Error!"
+    (_, _) -> throwM $ KeysNotFound "Private key and/or client email not found !"
 
 
 
