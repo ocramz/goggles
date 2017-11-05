@@ -45,7 +45,7 @@ import Crypto.Random.Types
 import qualified Data.Attoparsec.ByteString.Lazy as A
 
 import Network.Goggles.Internal.Auth.JWT
-import Data.Keys (gcpPrivateKeyRSA, gcpClientEmail)
+import Data.Keys (gcpKeys, GCPKeys(..), KeyException)
 
 
 data TokenExchangeException =
@@ -179,10 +179,9 @@ scopes = ["https://www.googleapis.com/auth/cloud-platform"]
 
 signedRequestPayload :: (MonadIO m, MonadThrow m, MonadRandom m) => [T.Text] -> m LB.ByteString
 signedRequestPayload scps = do
-  clientEmail <- liftIO $ gcpClientEmail
-  privateKey <- liftIO $ gcpPrivateKeyRSA
-  case (clientEmail, privateKey) of
-    (Just ce, Right pk) -> do
+  keys <- liftIO gcpKeys
+  case keys of
+    Right (GCPKeys ce pk _) -> do
       let serv = ServiceAccount pk ce Nothing
           opts = TokenOptions scps
       jwt <- encodeBearerJWT serv opts
@@ -191,7 +190,7 @@ signedRequestPayload scps = do
                 <> (B8.pack $ urlEncode "urn:ietf:params:oauth:grant-type:jwt-bearer")
                 <> "&assertion="
                 <> jwt 
-    (_, _) -> throwM $ APICredentialsNotFound "Private key and/or client email not found !"
+    _ -> throwM $ APICredentialsNotFound "Private key and/or client email not found !"
 
 
 
