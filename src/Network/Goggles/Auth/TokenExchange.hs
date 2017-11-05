@@ -9,7 +9,7 @@ import GHC.Generics
 
 import Network.Utils.HTTP (urlEncode)
 
-import Data.Keys (gcpPrivateKeyRSA, gcpClientEmail)
+
 
 import Network.Mime
 import Network.HTTP.Req
@@ -18,7 +18,7 @@ import qualified Network.HTTP.Client as H -- (RequestBody(..))
 import qualified Network.HTTP.Client.TLS as H (tlsManagerSettings)
 import qualified Network.HTTP.Types as H
 
-import Network.Goggles.Internal.Auth.JWT
+
 
 import Control.Applicative ((<|>))
 import Control.Monad.IO.Class
@@ -43,6 +43,10 @@ import qualified Data.Text.Encoding as T (encodeUtf8, decodeUtf8)
 import Crypto.Random.Types
 
 import qualified Data.Attoparsec.ByteString.Lazy as A
+
+import Network.Goggles.Internal.Auth.JWT
+import Data.Keys (gcpPrivateKeyRSA, gcpClientEmail)
+
 
 data TokenExchangeException =
     NotFound !String
@@ -92,14 +96,14 @@ instance Monad m => MonadReader Handle (Cloud m) where
 
 evalCloud h m = runReaderT (runCloud m) h `catch` ( \e ->
   case fromException e of
-    Just ex ->  throwIO (ex :: AsyncException)
+    Just ex -> throwM (ex :: AsyncException)
     Nothing -> return ()
                                                   )
 
 
 
 
-cacheToken :: MonadHttp m => OAuth2Token -> Cloud m OAuth2Token
+cacheToken :: MonadIO m => OAuth2Token -> Cloud m OAuth2Token
 cacheToken token = do
   tokenTVar <- asks hToken
   liftIO $ atomically $ do
@@ -120,7 +124,9 @@ instance MonadHttp IO where
 data OAuth2Token = OAuth2Token {
     _oaTokenExpirySeconds :: Int
   , _oaTokenString :: T.Text
-  , _oaTokenType :: T.Text } deriving (Eq, Show, Generic)
+  , _oaTokenType :: T.Text } deriving (Eq, Generic)
+instance Show OAuth2Token where
+  show (OAuth2Token expt _ _) = unwords ["OAuth2 token expires in", show expt, "seconds"]
 
 instance J.FromJSON OAuth2Token where
   parseJSON = J.withObject "OAuth2Token" $ \js -> OAuth2Token
@@ -128,7 +134,10 @@ instance J.FromJSON OAuth2Token where
     <*> js .: "access_token"
     <*> js .: "token_type"
 
-get :: MonadHttp m => OAuth2Token -> T.Text -> m LB.ByteString
+-- | Make an authenticated GET request to googleapis.com 
+get :: MonadHttp m => OAuth2Token
+    -> T.Text           -- ^ request URI path
+    -> m LB.ByteString
 get (OAuth2Token _ tok _) endpoint = do
   resp <- req GET
     (https "www.googleapis.com" /: endpoint)
@@ -137,7 +146,11 @@ get (OAuth2Token _ tok _) endpoint = do
     (oAuth2Bearer $ T.encodeUtf8 tok)
   return $ responseBody resp
 
-post :: MonadHttp m => OAuth2Token -> T.Text -> LB.ByteString -> m LB.ByteString
+-- | Make an authenticated POST request to googleapis.com 
+post :: MonadHttp m => OAuth2Token
+  -> T.Text          -- ^ request URI path
+  -> LB.ByteString   -- ^ request body
+  -> m LB.ByteString
 post (OAuth2Token _ tok _) endpoint payload = do
   resp <- req POST
     (https "www.googleapis.com" /: endpoint)
@@ -146,9 +159,9 @@ post (OAuth2Token _ tok _) endpoint payload = do
     (oAuth2Bearer $ T.encodeUtf8 tok)
   return $ responseBody resp
   
-  
-getOAuth2Token :: (MonadIO m, MonadThrow m, MonadRandom m, MonadHttp m) => m OAuth2Token
-getOAuth2Token = do
+-- | Request an OAuth2Token
+requestOAuth2Token :: (MonadIO m, MonadThrow m, MonadRandom m, MonadHttp m) => m OAuth2Token
+requestOAuth2Token = do
   payload <- signedRequestPayload scopes
   r <- req POST 
     (https "www.googleapis.com" /: "oauth2" /: "v4" /: "token")
