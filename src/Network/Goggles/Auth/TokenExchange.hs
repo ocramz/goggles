@@ -1,4 +1,6 @@
-{-# language OverloadedStrings, DeriveGeneric, TypeFamilies #-}
+{-# language OverloadedStrings, DeriveGeneric, TypeFamilies, GeneralizedNewtypeDeriving #-}
+{-# language FlexibleContexts #-}
+{-# language MultiParamTypeClasses #-}
 module Network.Goggles.Auth.TokenExchange where
 
 import Data.Monoid ((<>))
@@ -21,8 +23,12 @@ import Network.Goggles.Internal.Auth.JWT
 import Control.Applicative ((<|>))
 import Control.Monad.IO.Class
 import Control.Monad.Catch
-import Control.Exception (throwIO)
+import Control.Monad.Reader
+import Control.Monad.Trans
+import Control.Exception (throwIO, AsyncException)
 import Data.Typeable
+
+import Control.Concurrent.STM
 
 import qualified Data.Aeson as J
 import qualified Data.Aeson.Types as J
@@ -40,11 +46,72 @@ import qualified Data.Attoparsec.ByteString.Lazy as A
 
 data TokenExchangeException =
     NotFound !String
-  | KeysNotFound !String
+  | APICredentialsNotFound !String
   deriving (Show, Typeable)
 instance Exception TokenExchangeException
+
+
+data Handle = Handle {
+    hToken :: !(TVar (Maybe OAuth2Token))
+  -- , hFetchToken :: !(Cloud OAuth2Token)
+                     }
+
+
+data Cloud m a = Cloud { runCloud :: ReaderT Handle m a }
+
+instance Functor f => Functor (Cloud f) where
+  fmap f m = Cloud (f <$> runCloud m)
+
+instance Applicative f => Applicative (Cloud f) where
+  pure = liftCloud . pure
+  f <*> v = Cloud $ ReaderT (\r -> runReaderT f' r <*> runReaderT v' r) where
+    f' = runCloud f
+    v' = runCloud v
+
+liftCloud :: m a -> Cloud m a
+liftCloud m = Cloud $ ReaderT (const m)    
+
+instance Monad m => Monad (Cloud m) where
+    m >>= k = Cloud $ ReaderT $ \r -> do
+      a <- runReaderT (runCloud m) r
+      runReaderT (runCloud $ k a) r
+
+instance MonadIO m => MonadIO (Cloud m) where
+  liftIO = lift . liftIO
+
+instance MonadTrans Cloud where
+  lift = liftCloud
+
+instance Monad m => MonadReader Handle (Cloud m) where
+  ask = ask
+  local = local
+  reader = reader
+
+-- instance MonadHttp m => MonadHttp (Cloud m) where
+
+
+evalCloud h m = runReaderT (runCloud m) h `catch` ( \e ->
+  case fromException e of
+    Just ex ->  throwIO (ex :: AsyncException)
+    Nothing -> return ()
+                                                  )
+
+
+
+
+cacheToken :: MonadHttp m => OAuth2Token -> Cloud m OAuth2Token
+cacheToken token = do
+  tokenTVar <- asks hToken
+  liftIO $ atomically $ do
+    current <- readTVar tokenTVar
+    let newToken = case current of
+          Nothing -> token
+          Just x  -> if _oaTokenExpirySeconds x > _oaTokenExpirySeconds token then x else token
+    writeTVar tokenTVar (Just newToken)
+    return newToken
+
   
-  
+ 
 -- some actual exception handling may go in the implementation of handleHttpException
 instance MonadHttp IO where
   handleHttpException = throwIO
@@ -111,7 +178,7 @@ signedRequestPayload scps = do
                 <> (B8.pack $ urlEncode "urn:ietf:params:oauth:grant-type:jwt-bearer")
                 <> "&assertion="
                 <> jwt 
-    (_, _) -> throwM $ KeysNotFound "Private key and/or client email not found !"
+    (_, _) -> throwM $ APICredentialsNotFound "Private key and/or client email not found !"
 
 
 
