@@ -1,9 +1,13 @@
 {-# language OverloadedStrings, DeriveGeneric, TypeFamilies, GeneralizedNewtypeDeriving #-}
 {-# language FlexibleContexts, MultiParamTypeClasses, DataKinds, FlexibleInstances #-}
 module Network.Goggles.Auth.TokenExchange (
-    scopes
+    scopesDefault
   , GCP
   , requestTokenGCP
+  , getObject
+  , getObjectMetadata
+  , putObject
+  , listObjects
                                           ) where
 
 import Data.Monoid ((<>))
@@ -31,6 +35,7 @@ data GCP
 
 instance HasCredentials GCP where
   type Credentials GCP = GCPServiceAccount
+  type Options GCP = [T.Text]
   type TokenContent GCP = T.Text
   tokenFetch = requestTokenGCP
 
@@ -54,8 +59,8 @@ instance MonadHttp (Cloud GCP) where
 -- > https://developers.google.com/identity/protocols/googlescopes
 -- 
 -- for the full list
-scopes :: [T.Text]
-scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+scopesDefault :: [T.Text]
+scopesDefault = ["https://www.googleapis.com/auth/cloud-platform"]
 
 uriBase :: Url 'Https
 uriBase = https "www.googleapis.com"
@@ -67,7 +72,7 @@ uriBase = https "www.googleapis.com"
 -- | `getObject b p` retrieves the contents of a GCS object (of full path `p`) in bucket `b`
 getObject :: T.Text -> T.Text -> Cloud GCP LbsResponse
 getObject b p = do
-  tok <- accessToken
+  tok <- accessToken 
   let
     opts = oAuth2Bearer (T.encodeUtf8 tok) <>
            altMedia
@@ -77,7 +82,7 @@ getObject b p = do
 -- | `getObjectMetadata b p` retrieves the metadata of a GCS object (of full path `p`) in bucket `b`
 getObjectMetadata :: T.Text -> T.Text -> Cloud GCP LbsResponse
 getObjectMetadata b p = do
-  tok <- accessToken
+  tok <- accessToken 
   let
     opts = oAuth2Bearer (T.encodeUtf8 tok)
     uri = uriBase /: "storage" /: "v1" /: "b" /: b /: "o" /: p
@@ -85,9 +90,10 @@ getObjectMetadata b p = do
 
 --
 -- GET https://www.googleapis.com/storage/v1/b/bucket/o
+-- | `listObjects b` retrieves a list of objects stored in bucket `b`
 listObjects :: T.Text -> Cloud GCP LbsResponse
 listObjects b = do
-  tok <- accessToken
+  tok <- accessToken 
   let
     opts = oAuth2Bearer (T.encodeUtf8 tok)
     uri = uriBase /: "storage" /: "v1" /: "b" /: b /: "o"
@@ -119,6 +125,7 @@ ulMedia = "uploadType" =: ("media" :: T.Text)
 requestTokenGCP :: Cloud GCP (Token GCP)
 requestTokenGCP = do
    saOk <- asks credentials
+   scopes <- asks options
    let opts = GCPTokenOptions scopes
    t0 <- requestGcpOAuth2Token saOk opts
    tutc <- mkOAuth2TokenUTC (2 :: Int) t0

@@ -1,15 +1,26 @@
 module Network.Goggles (
-    GCP
-  , scopes
-  , Cloud(..)
+  -- * Google Cloud Storage
+    getObject
+  , listObjects
+  , putObject
+  -- ** GCP Authentication scopes
+  , scopesDefault
+  -- ** Running Cloud programs
   , evalCloudIO
   , liftCloudIO
+  , createHandle  
+  -- * Types
+  , GCP
+  , GCPServiceAccount(..)
+  , Cloud(..)
+  -- ** Authentication
   , HasCredentials(..)
   , Token(..)
-  , accessToken
-  , refreshToken
+  -- , accessToken
+  -- , refreshToken
   , Handle(..)
-  , createHandle  
+  -- * Private key 
+  , parseRSAPrivateKey
   -- * Exceptions
   , KeyException(..)
   , JWTError(..)
@@ -19,8 +30,10 @@ module Network.Goggles (
 
 
 import Network.Goggles.Control.Exceptions 
-import Network.Goggles.Cloud 
+import Network.Goggles.Cloud
+import Network.Goggles.Types
 import Network.Goggles.Auth.TokenExchange
+import Data.Keys 
 -- import System.Environment (lookupEnv)
 
 

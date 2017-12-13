@@ -28,7 +28,8 @@ import Network.Goggles.Control.Exceptions
 
 
 class HasCredentials c where
-  type Credentials c 
+  type Credentials c
+  type Options c
   type TokenContent c 
   tokenFetch :: Cloud c (Token c)
 
@@ -41,6 +42,7 @@ data Token c = Token {
 data Handle c = Handle {
       credentials :: Credentials c
     , token :: TVar (Maybe (Token c))
+    , options :: Options c
   }
 
 
@@ -68,16 +70,16 @@ accessToken = do
     tokenTVar <- asks token 
     mbToken <- liftCloudIO $ atomically $ readTVar tokenTVar
     tToken <$> case mbToken of
-        Nothing -> refreshToken
+        Nothing -> refreshToken 
         Just t -> do
             now <- liftCloudIO $ getCurrentTime
             if now > addUTCTime (- 60) (tTime t)
-                then refreshToken
+                then refreshToken 
                 else return t  
   
 -- | Create a 'Handle' with an empty token
-createHandle :: Credentials a -> IO (Handle a) 
-createHandle sa = Handle <$> pure sa <*> newTVarIO Nothing
+createHandle :: HasCredentials c => Credentials c -> Options c -> IO (Handle c) 
+createHandle sa opts = Handle <$> pure sa <*> newTVarIO Nothing <*> pure opts
 
 -- | The main type of the library. It can easily be re-used in libraries that interface with more than one cloud API provider because its type parameter `c` lets us be declare distinct behaviours for each.
 newtype Cloud c a = Cloud {
