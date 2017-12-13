@@ -1,8 +1,5 @@
 {-# language OverloadedStrings #-}
-module Data.Keys
-  (
-    gcpKeys, GCPKeys(..), KeyException
-  ) where
+module Data.Keys where
  
 import Data.Monoid 
 
@@ -84,15 +81,15 @@ gcpKeys = do
   return ks
 
 
-gcpPrivateKeyRSA :: IO (Either String PrivateKey)
-gcpPrivateKeyRSA = do 
-  ma <- parseSecrets
-  case M.lookup "GCP_PRIVATE_KEY" ma of
-    Just k ->  
-      case parseRSAPrivateKey k of [] -> return $ Left "Cannot parse RSA key"
-                                   (PrivKeyRSA ok:_) -> return $ Right ok
-                                   _ -> return $ Left "Found key is not a RSA private key"
-    Nothing -> return $ Left "No RSA key called GCP_PRIVATE_KEY found"
+-- gcpPrivateKeyRSA :: IO (Either String PrivateKey)
+-- gcpPrivateKeyRSA = do 
+--   ma <- parseSecrets
+--   case M.lookup "GCP_PRIVATE_KEY" ma of
+--     Just k ->  
+--       case parseRSAPrivateKey k of [] -> return $ Left "Cannot parse RSA key"
+--                                    (PrivKeyRSA ok:_) -> return $ Right ok
+--                                    _ -> return $ Left "Found key is not a RSA private key"
+--     Nothing -> return $ Left "No RSA key called GCP_PRIVATE_KEY found"
 
 parseRSAPrivateKey :: T.Text -> [PrivKey]
 parseRSAPrivateKey = readKeyFileFromMemory . withPEMheaders encodeUtf8  where

@@ -1,81 +1,162 @@
-{-# language OverloadedStrings, GeneralizedNewtypeDeriving #-}
-{-# language RankNTypes #-}
-{-# language DeriveFunctor #-}
-module Network.Goggles.Cloud where
+{-# language OverloadedStrings, TypeFamilies, GeneralizedNewtypeDeriving #-}
+{-# language FlexibleContexts, MultiParamTypeClasses, DeriveDataTypeable #-}
+{-# language UndecidableInstances #-}
+module Network.Goggles.Cloud (
+    Cloud(..)
+  , evalCloudIO
+  , liftCloudIO
+  , HasCredentials(..)
+  , Token(..)
+  , accessToken
+  , refreshToken
+  , Handle(..)
+  , createHandle
+                             ) where
 
-
-import Control.Applicative (Alternative(..), empty, (<|>))
+import Control.Applicative (Alternative(..))
+import Control.Monad.IO.Class
+import Control.Monad.Catch
 import Control.Monad.Reader
-import Control.Monad.Catch hiding (catch)
-import Control.Monad.Except
-import Control.Exception
+import qualified Control.Monad.Trans.Reader as RT (ask, local)
+import Crypto.Random.Types (MonadRandom(..))
+import Crypto.Random.Entropy (getEntropy)
+import Control.Exception (AsyncException, fromException)
 import Control.Concurrent.STM
-
 import Data.Time
 
-import Network.HTTP.Client
-
-import qualified Data.Text as T
-
-data Token = Token
-    { tokenExpiresAt :: ! UTCTime
-    , tokenValue     :: ! T.Text
-    } deriving (Show)
-
-data Handle = Handle
-    { hManager :: !Manager
-      -- ^ Shared HTTP manager.
-    , hToken :: !(TVar (Maybe Token))
-      -- ^ Cache for the access token. Use 'accessToken' when within the 'Cloud'
-      -- monad to access the token. That function will automatically refresh it
-      -- when it is about to expire.
-    , hFetchToken :: !(Cloud Token)
-      -- ^ The action which is used to fetch a fresh access token.
-    }
+import Network.Goggles.Control.Exceptions
 
 
-    
-data Error
-    = UnknownError !T.Text
-    | IOError !String
-    | JSONDecodeError !String
-    | TemporaryIOError !String
-    deriving (Eq, Show)
-instance Exception Error where
+class HasCredentials c where
+  type Credentials c 
+  type TokenContent c 
+  tokenFetch :: Cloud c (Token c)
+
+-- | A 'Token' with an expiry date
+data Token c = Token {
+    tToken :: TokenContent c
+  , tTime :: UTCTime
+  }
+
+data Handle c = Handle {
+      credentials :: Credentials c
+    , token :: TVar (Maybe (Token c))
+  }
+
+
+-- | `cacheToken tok hdl` : Overwrite the token TVar `tv` containing a token if `tok` carries a more recent timestamp.
+cacheToken ::
+  HasCredentials c => Token c -> Cloud c (Token c)
+cacheToken tok = do
+  tv <- asks token
+  liftCloudIO $ atomically $ do
+    current <- readTVar tv
+    let new = case current of
+          Nothing -> tok
+          Just t -> if tTime t > tTime tok then t else tok
+    writeTVar tv (Just new)
+    return new
+
+refreshToken :: HasCredentials c => Cloud c (Token c)
+refreshToken = tokenFetch >>= cacheToken
+
+
+
+-- | Extract the token content (needed to authenticate subsequent requests). The token will be valid for at least 60 seconds
+accessToken :: HasCredentials c => Cloud c (TokenContent c)
+accessToken = do
+    tokenTVar <- asks token 
+    mbToken <- liftCloudIO $ atomically $ readTVar tokenTVar
+    tToken <$> case mbToken of
+        Nothing -> refreshToken
+        Just t -> do
+            now <- liftCloudIO $ getCurrentTime
+            if now > addUTCTime (- 60) (tTime t)
+                then refreshToken
+                else return t  
+  
+-- | Create a 'Handle' with an empty token
+createHandle :: Credentials a -> IO (Handle a) 
+createHandle sa = Handle <$> pure sa <*> newTVarIO Nothing
+
+-- | The main type of the library. It can easily be re-used in libraries that interface with more than one cloud API provider because its type parameter `c` lets us be declare distinct behaviours for each.
+newtype Cloud c a = Cloud {
+  runCloud :: ReaderT (Handle c) IO a
+  } deriving (Functor, Applicative, Monad)
+
+
+instance HasCredentials c => Alternative (Cloud c) where
+    empty = throwM $ UnknownError "empty"
+    a1 <|> a2 = do
+      ra <- try a1
+      case ra of
+        Right x -> pure x
+        Left e -> case (fromException e) :: Maybe CloudException of
+          Just _ -> a2
+          Nothing -> throwM (UnknownError "Uncaught exception (not a CloudException)")
+
+
+-- -- | NB : this works similarly to <|> in the Alternative instance; it must discard information on which exception case occurred
+-- tryOrElse :: MonadCatch m => m b -> m b -> m b
+-- tryOrElse a1 a2 = do
+--   ra <- try a1
+--   case ra of
+--     Right x -> pure x
+--     Left e -> case (e :: CloudException) of _ -> a2
+
+
+
+
+-- | Lift an `IO a` action into the 'Cloud' monad
+liftCloudIO_ :: IO a -> Cloud c a
+liftCloudIO_ m = Cloud $ ReaderT (const m)
+
+-- | ", and catch synchronous exceptions, while rethrowing the asynchronous ones to IO
+liftCloudIO :: HasCredentials c => IO a -> Cloud c a
+liftCloudIO m = do
+  liftCloudIO_ m `catch` \e -> case fromException e of 
+    Just asy -> throwM (asy :: AsyncException)
+    Nothing -> throwM $ IOError (show e)
+
+
+
 
   
-newtype Cloud a = Cloud
-    { runCloud :: ReaderT Handle (ExceptT Error IO) a
-    } deriving (Functor, Applicative, Monad, MonadIO,
-        MonadError Error, MonadReader Handle)
+
+-- | Evaluate a 'Cloud' action, given a 'Handle'.
+--
+-- NB : Assumes all exceptions are handled by `throwM`
+evalCloudIO :: Handle c -> Cloud c a -> IO a
+evalCloudIO r (Cloud b) = runReaderT b r `catch` \e -> case (e :: CloudException) of 
+  ex -> throwM ex
 
 
 
 
-instance Alternative Cloud where
-    empty = throwError $ UnknownError "empty"
-    a <|> b = catchError a (const b)
-
--- | Evaluate a 'Cloud' action and return either the 'Error' or the result.
-evalCloud :: Handle -> Cloud a -> IO (Either Error a)
-evalCloud h m = (runExceptT $ runReaderT (runCloud m) h) `catch`
-    (\e -> transformException (UnknownError . T.pack . show) e >>= return . Left)
 
 
--- | Transform a synchronous exception into an 'Error'. Async exceptions
--- are left untouched and propagated into the 'IO' monad.
-transformException :: (SomeException -> Error) -> SomeException -> IO Error
-transformException f e = case fromException e of
-    Just async -> throwIO (async :: AsyncException)
-    Nothing    -> return $ f e
 
 
--- | Run an 'IO' action inside the 'Cloud' monad, catch all synchronous
--- exceptions and transform them into 'Error's.
-cloudIO :: IO a -> Cloud a
-cloudIO m = do
-    res <- liftIO $ (Right <$> m) `catch`
-        (\e -> transformException (IOError . show) e >>= return . Left)
-    case res of
-        Left e -> throwError e
-        Right  r -> return r
+
+instance HasCredentials c => MonadIO (Cloud c) where
+  liftIO = liftCloudIO
+
+instance HasCredentials c => MonadThrow (Cloud c) where
+  throwM = liftIO . throwM
+
+instance HasCredentials c => MonadCatch (Cloud c) where
+  catch (Cloud (ReaderT m)) c =
+    Cloud $ ReaderT $ \r -> m r `catch` \e -> runReaderT (runCloud $ c e) r
+  
+{- | the whole point of this parametrization is to have a distinct MonadHttp for each API provider/DSP
+
+instance HasCredentials c => MonadHttp (Boo c) where
+  handleHttpException = throwM
+-}
+
+instance HasCredentials c => MonadRandom (Cloud c) where
+  getRandomBytes = liftIO . getEntropy
+
+instance HasCredentials c => MonadReader (Handle c) (Cloud c) where
+  ask = Cloud RT.ask
+  local f m = Cloud $ RT.local f (runCloud m)

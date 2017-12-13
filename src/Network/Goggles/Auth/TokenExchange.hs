@@ -1,233 +1,122 @@
 {-# language OverloadedStrings, DeriveGeneric, TypeFamilies, GeneralizedNewtypeDeriving #-}
-{-# language FlexibleContexts #-}
-{-# language MultiParamTypeClasses #-}
+{-# language FlexibleContexts, MultiParamTypeClasses, DataKinds, FlexibleInstances #-}
 module Network.Goggles.Auth.TokenExchange where
 
 import Data.Monoid ((<>))
 
-import GHC.Generics
-
-import Network.Utils.HTTP (urlEncode)
-
-
-
-import Network.Mime
 import Network.HTTP.Req
-
-import qualified Network.HTTP.Client as H -- (RequestBody(..))
-import qualified Network.HTTP.Client.TLS as H (tlsManagerSettings)
-import qualified Network.HTTP.Types as H
-
-
-
-import Control.Applicative ((<|>))
-import Control.Monad.IO.Class
 import Control.Monad.Catch
 import Control.Monad.Reader
-import Control.Monad.Trans
-import Control.Exception (throwIO, AsyncException)
-import Data.Typeable
-
-import Control.Concurrent.STM
-
-import qualified Data.Aeson as J
-import qualified Data.Aeson.Types as J
-
-import Data.Aeson (object, (.=), (.:), (.:?))
-
 import qualified Data.ByteString.Lazy as LB
-import qualified Data.ByteString.Char8            as B8
--- import           Data.ByteString.Base64.URL (encode)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T (encodeUtf8, decodeUtf8)
-import Crypto.Random.Types
+import qualified Crypto.Random.Types as CR
 
-import qualified Data.Attoparsec.ByteString.Lazy as A
-
-import Network.Goggles.Internal.Auth.JWT
-import Data.Keys (gcpKeys, GCPKeys(..), KeyException)
-
-
-data TokenExchangeException =
-    NotFound !String
-  | APICredentialsNotFound !String
-  deriving (Show, Typeable)
-instance Exception TokenExchangeException
+import Network.Goggles.Cloud
+import Network.Goggles.Types
+import Network.Goggles.Auth.OAuth2
+import Network.Goggles.Auth.JWT
+import Network.Utils.HTTP (putLbs, getLbs, urlEncode)
 
 
-data Handle = Handle {
-    hToken :: !(TVar (Maybe OAuth2Token))
-  -- , hFetchToken :: !(Cloud OAuth2Token)
-                     }
+-- * The GCP type
 
+data GCP
 
-data Cloud m a = Cloud { runCloud :: ReaderT Handle m a }
+instance HasCredentials GCP where
+  type Credentials GCP = GCPServiceAccount
+  type TokenContent GCP = T.Text
+  tokenFetch = requestTokenGCP
 
-instance Functor f => Functor (Cloud f) where
-  fmap f m = Cloud (f <$> runCloud m)
+instance Show (Token GCP) where
+  show (Token tok time) = unwords ["GCP Token :", T.unpack tok, "; expires at :", show time]
 
-instance Applicative f => Applicative (Cloud f) where
-  pure = liftCloud . pure
-  f <*> v = Cloud $ ReaderT (\r -> runReaderT f' r <*> runReaderT v' r) where
-    f' = runCloud f
-    v' = runCloud v
-
-liftCloud :: m a -> Cloud m a
-liftCloud m = Cloud $ ReaderT (const m)    
-
-instance Monad m => Monad (Cloud m) where
-    m >>= k = Cloud $ ReaderT $ \r -> do
-      a <- runReaderT (runCloud m) r
-      runReaderT (runCloud $ k a) r
-
-instance MonadIO m => MonadIO (Cloud m) where
-  liftIO = lift . liftIO
-
-instance MonadTrans Cloud where
-  lift = liftCloud
-
-instance Monad m => MonadReader Handle (Cloud m) where
-  ask = ask
-  local = local
-  reader = reader
-
--- instance MonadHttp m => MonadHttp (Cloud m) where
-
-
-evalCloud h m = runReaderT (runCloud m) h `catch` ( \e ->
-  case fromException e of
-    Just ex -> throwM (ex :: AsyncException)
-    Nothing -> return ()
-                                                  )
+-- | We can provide a custom http exception handler rather than throwing exceptions with this instance  
+instance MonadHttp (Cloud GCP) where
+  handleHttpException = throwM
 
 
 
-
-cacheToken :: MonadIO m => OAuth2Token -> Cloud m OAuth2Token
-cacheToken token = do
-  tokenTVar <- asks hToken
-  liftIO $ atomically $ do
-    current <- readTVar tokenTVar
-    let newToken = case current of
-          Nothing -> token
-          Just x  -> if _oaTokenExpirySeconds x > _oaTokenExpirySeconds token then x else token
-    writeTVar tokenTVar (Just newToken)
-    return newToken
-
-  
- 
--- some actual exception handling may go in the implementation of handleHttpException
-instance MonadHttp IO where
-  handleHttpException = throwIO
-
-
-data OAuth2Token = OAuth2Token {
-    _oaTokenExpirySeconds :: Int
-  , _oaTokenString :: T.Text
-  , _oaTokenType :: T.Text } deriving (Eq, Generic)
-instance Show OAuth2Token where
-  show (OAuth2Token expt _ _) = unwords ["OAuth2 token expires in", show expt, "seconds"]
-
-instance J.FromJSON OAuth2Token where
-  parseJSON = J.withObject "OAuth2Token" $ \js -> OAuth2Token
-    <$> js .: "expires_in"
-    <*> js .: "access_token"
-    <*> js .: "token_type"
-
--- | Make an authenticated GET request to googleapis.com 
-get :: MonadHttp m => OAuth2Token
-    -> T.Text           -- ^ request URI path
-    -> m LB.ByteString
-get (OAuth2Token _ tok _) endpoint = do
-  resp <- req GET
-    (https "www.googleapis.com" /: endpoint)
-    NoReqBody
-    lbsResponse
-    (oAuth2Bearer $ T.encodeUtf8 tok)
-  return $ responseBody resp
-
--- | Make an authenticated POST request to googleapis.com 
-post :: MonadHttp m => OAuth2Token
-  -> T.Text          -- ^ request URI path
-  -> LB.ByteString   -- ^ request body
-  -> m LB.ByteString
-post (OAuth2Token _ tok _) endpoint payload = do
-  resp <- req POST
-    (https "www.googleapis.com" /: endpoint)
-    (ReqBodyLbs payload)
-    lbsResponse
-    (oAuth2Bearer $ T.encodeUtf8 tok)
-  return $ responseBody resp
-  
--- | Request an OAuth2Token
-requestOAuth2Token :: (MonadIO m, MonadThrow m, MonadRandom m, MonadHttp m) => m OAuth2Token
-requestOAuth2Token = do
-  payload <- signedRequestPayload scopes
-  r <- req POST 
-    (https "www.googleapis.com" /: "oauth2" /: "v4" /: "token")
-    (ReqBodyLbs payload)
-    lbsResponse
-    (header "Content-Type" "application/x-www-form-urlencoded; charset=utf-8")
-  maybe
-    (throwM $ NotFound "")
-    pure
-    (J.decode (responseBody r) :: Maybe OAuth2Token)
+-- * Constants
 
 scopes :: [T.Text]
 scopes = ["https://www.googleapis.com/auth/cloud-platform"]
 
-
-signedRequestPayload :: (MonadIO m, MonadThrow m, MonadRandom m) => [T.Text] -> m LB.ByteString
-signedRequestPayload scps = do
-  keys <- liftIO gcpKeys
-  case keys of
-    Right (GCPKeys ce pk _) -> do
-      let serv = ServiceAccount pk ce Nothing
-          opts = TokenOptions scps
-      jwt <- encodeBearerJWT serv opts
-      return $ LB.fromStrict $
-                   "grant_type="
-                <> (B8.pack $ urlEncode "urn:ietf:params:oauth:grant-type:jwt-bearer")
-                <> "&assertion="
-                <> jwt 
-    _ -> throwM $ APICredentialsNotFound "Private key and/or client email not found !"
+uriBase :: Url 'Https
+uriBase = https "www.googleapis.com"
 
 
 
+-- * Google Cloud Storage (GCS)
+
+-- | `getObject b p` retrieves the contents of a GCS object (of full path `p`) in bucket `b`
+getObject :: T.Text -> T.Text -> Cloud GCP LbsResponse
+getObject b p = do
+  tok <- accessToken
+  let
+    opts = oAuth2Bearer (T.encodeUtf8 tok) <>
+           altMedia
+    uri = uriBase /: "storage" /: "v1" /: "b" /: b /: "o" /: p
+  getLbs uri opts
+
+-- | `getObjectMetadata b p` retrieves the metadata of a GCS object (of full path `p`) in bucket `b`
+getObjectMetadata :: T.Text -> T.Text -> Cloud GCP LbsResponse
+getObjectMetadata b p = do
+  tok <- accessToken
+  let
+    opts = oAuth2Bearer (T.encodeUtf8 tok)
+    uri = uriBase /: "storage" /: "v1" /: "b" /: b /: "o" /: p
+  getLbs uri opts
+
+--
+-- GET https://www.googleapis.com/storage/v1/b/bucket/o
+listObjects :: T.Text -> Cloud GCP LbsResponse
+listObjects b = do
+  tok <- accessToken
+  let
+    opts = oAuth2Bearer (T.encodeUtf8 tok)
+    uri = uriBase /: "storage" /: "v1" /: "b" /: b /: "o"
+  getLbs uri opts
+
+-- | `putObject b p body` uploads a bytestring `body` into a GCS object (of full path `p`) in bucket `b`
+putObject :: T.Text -> T.Text -> LB.ByteString -> Cloud GCP LbsResponse
+putObject b objName body = do
+  tok <- accessToken
+  let
+    opts = oAuth2Bearer (T.encodeUtf8 tok) <>
+           ulMedia <>
+           ("name" =: objName)
+    uri = uriBase /: "upload" /: "storage" /: "v1" /: "b" /: b /: "o"
+  putLbs uri opts body 
+
+
+  
+-- | Constant request parameters required by GCS calls
+altMedia, ulMedia :: Option 'Https
+altMedia = "alt" =: ("media" :: T.Text)
+ulMedia = "uploadType" =: ("media" :: T.Text)
+
+  
 
 
 
+-- | Implementation of `tokenFetch`
+requestTokenGCP :: Cloud GCP (Token GCP)
+requestTokenGCP = do
+   saOk <- asks credentials
+   let opts = GCPTokenOptions scopes
+   t0 <- requestGcpOAuth2Token saOk opts
+   tutc <- mkOAuth2TokenUTC (2 :: Int) t0
+   return (Token (oauTokenString tutc) (oauTokenExpiry tutc))
 
 
--- -- Sandbox : -- 
-
--- testMain2 = do
---   manager <- H.newManager H.tlsManagerSettings
---   payload <- mkRequestPayload scopes
---   -- initialRequest <- H.parseRequest "https://www.googleapis.com/oauth2/v4/token"
---   initialRequest <- H.parseRequest "https://www.googleapis.com/oauth2/v4/tokenFoo"
---   let r = initialRequest {
---         H.method = "POST"
---       , H.requestBody = H.RequestBodyLBS $ payload
---       , H.requestHeaders = [(H.hContentType, B8.pack "application/x-www-form-urlencoded")]
---         }
---   -- print (H.requestBody request)
---   -- let (H.RequestBodyLBS rb) = H.requestBody r
---   -- print rb
---   response <- H.httpLbs r manager
---   print (H.responseBody response)
---   -- print (J.decode (H.responseBody response) :: Maybe J.Value)
-
-
-
--- testMain = do
---   payload <- mkRequestPayload scopes
---   r <- req' POST 
---     (https "www.googleapis.com" /: "oauth2" /: "v4" /: "token") 
---     (ReqBodyJsonUE payload) 
---     mempty
---     (\request _ -> pure request)
---   print $ H.queryString r
---   print $ H.requestHeaders r
---   print $ payload -- show $ H.requestBody r
-
+-- | Request an OAuth2Token
+requestGcpOAuth2Token :: (MonadThrow m, CR.MonadRandom m, MonadHttp m) =>
+     GCPServiceAccount -> GCPTokenOptions -> m OAuth2Token
+requestGcpOAuth2Token serviceAcct opts = do
+  jwt <- T.decodeUtf8 <$> encodeBearerJWT serviceAcct opts
+  requestOAuth2Token
+      (uriBase /: "oauth2" /: "v4" /: "token")
+      [("grant_type", T.pack $ urlEncode "urn:ietf:params:oauth:grant-type:jwt-bearer"),
+       ("assertion", jwt)]
+      (header "Content-Type" "application/x-www-form-urlencoded; charset=utf-8")

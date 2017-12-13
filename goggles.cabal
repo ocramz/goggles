@@ -19,22 +19,19 @@ library
   ghc-options:         -Wall
   hs-source-dirs:      src
   exposed-modules:     Network.Goggles
+                       Network.Goggles.Types
                        Network.Goggles.Cloud
-                       Network.Goggles.Storage
-                       Network.Goggles.Internal.HTTP
-                       Network.Goggles.Auth
+                       Network.Goggles.Auth.OAuth2
+                       Network.Goggles.Auth.JWT
                        Network.Goggles.Auth.TokenExchange                       
-                       Network.Goggles.Experimental
+                       Network.Goggles.Control.Exceptions
                        Network.Utils.HTTP
   other-modules:       Data.Keys
-                       Network.Goggles.Internal.Auth.JWT
   build-depends:       base >= 4.7 && < 5
                      , binary
                      , scientific
                      , attoparsec
                      , aeson
-                     , microlens
-                     , microlens-aeson
                      , req >= 0.3
                      , http-client
                      , http-client-tls
@@ -58,9 +55,6 @@ library
                      , unordered-containers
                      , exceptions
                      , filepath
-                     , retry
-                     , logging-effect
-                     , data-default
                      -- * DEBUG
                      , hspec
                      , QuickCheck

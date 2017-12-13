@@ -1,7 +1,42 @@
+{-# language OverloadedStrings, FlexibleContexts #-}
 module Network.Utils.HTTP where
 
-import Data.Char     ( digitToInt, intToDigit, toLower, isDigit,
-                       isAscii, isAlphaNum )
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T (encodeUtf8)
+import qualified Data.ByteString.Lazy as LB
+import Data.Char ( isAscii, isAlphaNum, digitToInt )
+import Network.HTTP.Req
+
+import Network.Goggles.Cloud
+
+
+
+getLbs :: (HasCredentials c, MonadHttp (Cloud c)) =>
+               Url scheme -> Option scheme -> Cloud c LbsResponse
+getLbs uri opts = req GET uri NoReqBody lbsResponse opts 
+
+postLbs :: (HasCredentials c, MonadHttp (Cloud c)) =>
+               Url scheme -> Option scheme -> LB.ByteString -> Cloud c LbsResponse
+postLbs uri opts body = req POST uri (ReqBodyLbs body) lbsResponse opts
+
+putLbs :: (HasCredentials c, MonadHttp (Cloud c)) =>
+               Url scheme -> Option scheme -> LB.ByteString -> Cloud c LbsResponse
+putLbs uri opts body = req PUT uri (ReqBodyLbs body) lbsResponse opts
+
+
+
+
+
+-- | produce a '&'-separated list of parameters that can be passed to an HTTP querty from a list of key, value pairs 
+encodeHttpParametersLB :: [(T.Text, T.Text)] -> LB.ByteString
+encodeHttpParametersLB ps = LB.fromStrict $ T.encodeUtf8 $ T.intercalate "&" $ map ins ps where
+  ins (k, v) = T.concat [k, "=", v]
+
+encodeHttpParameters :: (QueryParam p, Monoid p) => [(T.Text, T.Text)] -> p
+encodeHttpParameters ll = mconcat $ map ins ll where
+  ins (a, b) = a =: b
+
+
 
 -- http://hackage.haskell.org/package/HTTP-4000.2.3/docs/src/Network-HTTP-Base.html
 

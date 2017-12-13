@@ -1,6 +1,6 @@
 # goggles
 
-![](goggles1.png)
+<img src="goggles1.png" style="width: 300px;"/>
 
 [![Build Status](https://travis-ci.org/ocramz/goggles.png)](https://travis-ci.org/ocramz/goggles)
 
