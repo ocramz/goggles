@@ -4,7 +4,6 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 
 import Network.Goggles
-import Network.Goggles.Auth
 
 
 

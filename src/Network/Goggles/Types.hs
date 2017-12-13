@@ -1,9 +1,12 @@
+{-# language TypeFamilies, FlexibleInstances #-}
 module Network.Goggles.Types (
     GCPServiceAccount(..)
   , GCPTokenOptions(..) ) where
 
 import qualified Data.Text as T
 import Crypto.PubKey.RSA.Types
+
+
 
 
 -- | Credentials for Google Cloud Platform

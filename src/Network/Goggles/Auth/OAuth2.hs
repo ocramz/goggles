@@ -5,8 +5,6 @@ module Network.Goggles.Auth.OAuth2
   , OAuth2Token(..)
   , OAuth2TokenUTC(..)
   , mkOAuth2TokenUTC
-    -- * Exceptions
-  , TokenExchangeException(..)
                                 )
   where
 

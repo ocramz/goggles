@@ -19,14 +19,14 @@ library
   ghc-options:         -Wall
   hs-source-dirs:      src
   exposed-modules:     Network.Goggles
-                       Network.Goggles.Types
-                       Network.Goggles.Cloud
-                       Network.Goggles.Auth.OAuth2
-                       Network.Goggles.Auth.JWT
-                       Network.Goggles.Auth.TokenExchange                       
-                       Network.Goggles.Control.Exceptions
-                       Network.Utils.HTTP
   other-modules:       Data.Keys
+                       Network.Goggles.Cloud
+                       Network.Utils.HTTP
+                       Network.Goggles.Types
+                       Network.Goggles.Auth.JWT
+                       Network.Goggles.Auth.OAuth2
+                       Network.Goggles.Auth.TokenExchange
+                       Network.Goggles.Control.Exceptions
   build-depends:       base >= 4.7 && < 5
                      , binary
                      , scientific

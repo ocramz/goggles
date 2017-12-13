@@ -1,4 +1,9 @@
-module Network.Goggles.Control.Exceptions where
+module Network.Goggles.Control.Exceptions (
+    KeyException(..)
+  , JWTError(..)
+  , TokenExchangeException(..)
+  , CloudException(..)
+  )where
 
 import Control.Exception
 import Data.Typeable

@@ -1,6 +1,10 @@
 {-# language OverloadedStrings, DeriveGeneric, TypeFamilies, GeneralizedNewtypeDeriving #-}
 {-# language FlexibleContexts, MultiParamTypeClasses, DataKinds, FlexibleInstances #-}
-module Network.Goggles.Auth.TokenExchange where
+module Network.Goggles.Auth.TokenExchange (
+    scopes
+  , GCP
+  , requestTokenGCP
+                                          ) where
 
 import Data.Monoid ((<>))
 
@@ -17,6 +21,8 @@ import Network.Goggles.Types
 import Network.Goggles.Auth.OAuth2
 import Network.Goggles.Auth.JWT
 import Network.Utils.HTTP (putLbs, getLbs, urlEncode)
+
+
 
 
 -- * The GCP type
@@ -37,8 +43,17 @@ instance MonadHttp (Cloud GCP) where
 
 
 
+
+
 -- * Constants
 
+-- | OAuth2 scopes for the various Google Cloud Platform services.
+--
+-- Please refer to 
+--
+-- > https://developers.google.com/identity/protocols/googlescopes
+-- 
+-- for the full list
 scopes :: [T.Text]
 scopes = ["https://www.googleapis.com/auth/cloud-platform"]
 
