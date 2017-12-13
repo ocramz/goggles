@@ -111,7 +111,7 @@ instance HasCredentials c => Alternative (Cloud c) where
 liftCloudIO_ :: IO a -> Cloud c a
 liftCloudIO_ m = Cloud $ ReaderT (const m)
 
--- | ", and catch synchronous exceptions, while rethrowing the asynchronous ones to IO
+-- | Lift an `IO a` action into the 'Cloud' monad, and catch synchronous exceptions, while rethrowing the asynchronous ones to IO
 liftCloudIO :: HasCredentials c => IO a -> Cloud c a
 liftCloudIO m = do
   liftCloudIO_ m `catch` \e -> case fromException e of 

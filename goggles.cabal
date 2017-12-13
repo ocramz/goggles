@@ -36,7 +36,6 @@ library
                      , http-client
                      , http-client-tls
                      , http-types
-                     , mime-types
                      , cryptonite
                      , memory
                      , pem
@@ -52,7 +51,6 @@ library
                      , stm
                      -- , envy
                      , containers
-                     , unordered-containers
                      , exceptions
                      , filepath
                      -- * DEBUG
