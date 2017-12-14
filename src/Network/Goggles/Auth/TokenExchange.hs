@@ -35,7 +35,7 @@ data GCP
 
 instance HasCredentials GCP where
   type Credentials GCP = GCPServiceAccount
-  type Options GCP = [T.Text]
+  type Options GCP = GCPTokenOptions -- [T.Text]
   type TokenContent GCP = T.Text
   tokenFetch = requestTokenGCP
 
@@ -88,7 +88,7 @@ getObjectMetadata b p = do
     uri = uriBase /: "storage" /: "v1" /: "b" /: b /: "o" /: p
   getLbs uri opts
 
---
+
 -- GET https://www.googleapis.com/storage/v1/b/bucket/o
 -- | `listObjects b` retrieves a list of objects stored in bucket `b`
 listObjects :: T.Text -> Cloud GCP LbsResponse
@@ -125,8 +125,7 @@ ulMedia = "uploadType" =: ("media" :: T.Text)
 requestTokenGCP :: Cloud GCP (Token GCP)
 requestTokenGCP = do
    saOk <- asks credentials
-   scopes <- asks options
-   let opts = GCPTokenOptions scopes
+   opts <- asks options
    t0 <- requestGcpOAuth2Token saOk opts
    tutc <- mkOAuth2TokenUTC (2 :: Int) t0
    return (Token (oauTokenString tutc) (oauTokenExpiry tutc))
