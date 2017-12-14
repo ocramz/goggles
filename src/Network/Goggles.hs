@@ -4,6 +4,8 @@ Most Google Cloud Platform (GCP) functionality requires authentication, which mu
 
 From now on, we'll assume the user has such credentials and is able to load them alongside this library.
 
+== /Dependencies/
+
 The examples require the following declarations (which in turn mean that the @req@ and @bytestring@ libraries are imported by the user's project). You will also need the @OverloadedStrings@ language extension :
 
 > import qualified Data.ByteString.Lazy as LB

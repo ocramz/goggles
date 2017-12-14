@@ -37,6 +37,7 @@ data CloudException =
   | IOError !String
   | TimeoutError !String
   | JsonDecodeError !String
+  | XMLDecodeError !String
   deriving (Show, Typeable)
 instance Exception CloudException
 

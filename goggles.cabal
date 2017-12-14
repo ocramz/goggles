@@ -1,5 +1,5 @@
 name:                goggles
-version:             0.1.0.3
+version:             0.1.0.4
 synopsis:            Interface to Google Cloud APIs
 description:         High-level, extensible interface to Google Cloud APIs. 
 homepage:            https://github.com/ocramz/goggles
@@ -53,9 +53,9 @@ library
                      , containers
                      , exceptions
                      , filepath
-                     -- * DEBUG
-                     , hspec
-                     , QuickCheck
+                     -- -- * DEBUG
+                     -- , hspec
+                     -- , QuickCheck
   
   
 
@@ -73,6 +73,7 @@ test-suite spec
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
+  other-modules:       LibSpec
   build-depends:       base
                      , goggles
                      , hspec

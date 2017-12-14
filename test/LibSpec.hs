@@ -2,9 +2,10 @@
 module LibSpec where
 
 import Test.Hspec
-import Test.Hspec.QuickCheck
 
-import Network.Goggles
+-- import Test.Hspec.QuickCheck
+
+-- import Network.Goggles
 
 
 
