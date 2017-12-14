@@ -1,11 +1,13 @@
 # goggles
 
-<img src="https://raw.githubusercontent.com/ocramz/goggles/master/goggles1.png" width="300" >
-
 [![Build Status](https://travis-ci.org/ocramz/goggles.png)](https://travis-ci.org/ocramz/goggles)
 
-Interface to Google Cloud APIs
+Haskell Interface to the Google Cloud APIs
 
+
+## Instructions and examples
+
+All instructions and API documentation are available as Haddocks in the main module, `Network.Goggles`
 
 
 ### Inspiration
