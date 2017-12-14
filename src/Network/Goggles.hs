@@ -1,4 +1,32 @@
-{-| 
+{-| This module is the entry point to the @goggles@ library, which is a Haskell interface to the cloud services hosted by Google (e.g. storage, compute, mail, etc.: <https://cloud.google.com/>) .
+
+Most Google Cloud Platform (GCP) functionality requires authentication, which must be obtained beforehand from the website either with a free trial or a paid plan.
+
+From now on, we'll assume the user has such credentials and is able to load them alongside this library.
+
+This first example, @listBucketLB@:
+
+1. loads the GCP credentials (username and RSA key),
+2. retrieves a token,
+3. performs a single call to the Cloud Storage API endpoint that lists the metadata related to the contents of a storage bucket.
+4. returns the raw API data to the user as a lazy ByteString.
+
+> {-# language OverloadedStrings #-}
+>
+> import qualified Data.ByteString.Lazy as LB
+> import Network.HTTP.Req (responseBody)
+> import Network.Goggles
+>
+> listBucketLB :: IO LB.ByteString
+> listBucketLB = do
+>   let usr = "...iam.gserviceaccount.com"
+>       bucket = "<my-gcs-bucket>"
+>       key = "<rsa_key>"
+>   pvtkey <- parseRSAPrivateKey key
+>   let creds = GCPServiceAccount pvtkey usr Nothing ""
+>   hdl <- createHandle creds scopesDefault
+>   responseBody <$> evalCloudIO hdl (listObjects bucket)
+
 
 -}
 module Network.Goggles (
@@ -16,6 +44,7 @@ module Network.Goggles (
   -- * Types
   , GCP
   , GCPServiceAccount(..)
+  , GCPTokenOptions(..)
   , Cloud(..)
   -- ** Authentication
   , HasCredentials(..)
