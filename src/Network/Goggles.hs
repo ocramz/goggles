@@ -1,3 +1,6 @@
+{-| 
+
+-}
 module Network.Goggles (
   -- * Google Cloud Storage
     getObject
@@ -6,9 +9,10 @@ module Network.Goggles (
   -- ** GCP Authentication scopes
   , scopesDefault
   -- ** Running Cloud programs
+  , createHandle    
   , evalCloudIO
+  -- *** Executing IO actions within 'Cloud'
   , liftCloudIO
-  , createHandle  
   -- * Types
   , GCP
   , GCPServiceAccount(..)

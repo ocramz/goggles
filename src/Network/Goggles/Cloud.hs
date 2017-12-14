@@ -27,18 +27,24 @@ import Data.Time
 import Network.Goggles.Control.Exceptions
 
 
+-- | This class 
 class HasCredentials c where
   type Credentials c
   type Options c
   type TokenContent c 
   tokenFetch :: Cloud c (Token c)
 
--- | A 'Token' with an expiry date
+-- | An authentication 'Token' with an expiry date
 data Token c = Token {
     tToken :: TokenContent c
   , tTime :: UTCTime
   }
 
+-- | A 'Handle' contains all information necessary to communicating with a cloud API provider:
+--
+-- * Authentication credentials (e.g. username/password)
+-- * Authentication token (used to authenticate every API call)
+-- * Options (e.g. GCP authentication scopes)
 data Handle c = Handle {
       credentials :: Credentials c
     , token :: TVar (Maybe (Token c))

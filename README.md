@@ -1,6 +1,6 @@
 # goggles
 
-<img src="goggles1.png" style="width: 300px;"/>
+<img src="https://raw.githubusercontent.com/ocramz/goggles/master/goggles1.png" width="300" >
 
 [![Build Status](https://travis-ci.org/ocramz/goggles.png)](https://travis-ci.org/ocramz/goggles)
 
