@@ -19,6 +19,8 @@ library
   ghc-options:         -Wall
   hs-source-dirs:      src
   exposed-modules:     Network.Goggles.GCP
+                       Network.Goggles.Auth.GCP
+  other-modules:       Network.Goggles.Types.GCP
   build-depends:       base >= 4.7 && < 5
                      , goggles
                      , text

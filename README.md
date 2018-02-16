@@ -3,7 +3,15 @@
 [![Build Status](https://travis-ci.org/ocramz/goggles.png)](https://travis-ci.org/ocramz/goggles) [![Hackage version](https://img.shields.io/hackage/v/goggles.svg?label=Hackage)](https://hackage.haskell.org/package/goggles) [![Stackage version](https://www.stackage.org/package/goggles/badge/lts?label=Stackage)](https://www.stackage.org/package/goggles)
 
 
-Haskell Interface to the Google Cloud APIs
+Extensible Haskell interface to web APIs.
+
+The library provides a type, `WebApiM`, and a set of helper functions useful for interfacing with remote services.
+
+Features:
+
+* Easily extensible
+* Automatic handling of session tokens with finite expiry time
+
 
 
 ## Instructions and examples

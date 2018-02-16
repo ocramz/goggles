@@ -1,5 +1,5 @@
 {-# language OverloadedStrings, FlexibleContexts, RecordWildCards #-}
-module Network.Goggles.Auth.JWT where
+module Network.Goggles.Auth.GCP.JWT where
 
 import qualified Data.ByteString.Lazy            as LB
 import qualified Data.ByteString.Char8            as B8

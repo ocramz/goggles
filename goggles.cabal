@@ -25,7 +25,7 @@ library
                        Network.Goggles.Cloud
                        Network.Utils.HTTP
                        Network.Goggles.Types
-                       Network.Goggles.Auth.JWT
+                       -- Network.Goggles.Auth.JWT
                        Network.Goggles.Auth.OAuth2
                        -- Network.Goggles.Auth.TokenExchange
                        Network.Goggles.Control.Exceptions
