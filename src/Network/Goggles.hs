@@ -29,7 +29,7 @@ This first example, @listBucket@, reads content from a cloud storage bucket:
 >   pvtkey <- parseRSAPrivateKey key
 >   let creds = GCPServiceAccount pvtkey usr Nothing ""
 >   hdl <- createHandle creds scopesDefault
->   responseBody <$> evalCloudIO hdl (listObjects bucket)
+>   responseBody <$> evalWebApiIO hdl (listObjects bucket)
 
 
 -}
@@ -41,16 +41,16 @@ module Network.Goggles (
   , putObject
   -- ** GCP Authentication scopes
   , scopesDefault
-  -- ** Running Cloud programs
+  -- ** Running WebApiM programs
   , createHandle    
-  , evalCloudIO
-  -- *** Executing IO actions within 'Cloud'
-  , liftCloudIO
+  , evalWebApiIO
+  -- *** "Lifting" IO programs into 'WebApiM'
+  , liftWebApiIO
   -- * Types
   , GCP
   , GCPServiceAccount(..)
   , GCPTokenOptions(..)
-  , Cloud(..)
+  , WebApiM(..)
   -- ** Authentication
   , HasCredentials(..)
   , Token(..)

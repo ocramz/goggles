@@ -43,7 +43,7 @@ instance Show (Token GCP) where
   show (Token tok time) = unwords ["GCP Token :", T.unpack tok, "; expires at :", show time]
 
 -- | We can provide a custom http exception handler rather than throwing exceptions with this instance  
-instance MonadHttp (Cloud GCP) where
+instance MonadHttp (WebApiM GCP) where
   handleHttpException = throwM
 
 
@@ -70,7 +70,7 @@ uriBase = https "www.googleapis.com"
 -- * Google Cloud Storage (GCS)
 
 -- | `getObject b p` retrieves the contents of a GCS object (of full path `p`) in bucket `b`
-getObject :: T.Text -> T.Text -> Cloud GCP LbsResponse
+getObject :: T.Text -> T.Text -> WebApiM GCP LbsResponse
 getObject b p = do
   tok <- accessToken 
   let
@@ -80,7 +80,7 @@ getObject b p = do
   getLbs uri opts
 
 -- | `getObjectMetadata b p` retrieves the metadata of a GCS object (of full path `p`) in bucket `b`
-getObjectMetadata :: T.Text -> T.Text -> Cloud GCP LbsResponse
+getObjectMetadata :: T.Text -> T.Text -> WebApiM GCP LbsResponse
 getObjectMetadata b p = do
   tok <- accessToken 
   let
@@ -91,7 +91,7 @@ getObjectMetadata b p = do
 
 -- GET https://www.googleapis.com/storage/v1/b/bucket/o
 -- | `listObjects b` retrieves a list of objects stored in bucket `b`
-listObjects :: T.Text -> Cloud GCP LbsResponse
+listObjects :: T.Text -> WebApiM GCP LbsResponse
 listObjects b = do
   tok <- accessToken 
   let
@@ -100,7 +100,7 @@ listObjects b = do
   getLbs uri opts
 
 -- | `putObject b p body` uploads a bytestring `body` into a GCS object (of full path `p`) in bucket `b`
-putObject :: T.Text -> T.Text -> LB.ByteString -> Cloud GCP LbsResponse
+putObject :: T.Text -> T.Text -> LB.ByteString -> WebApiM GCP LbsResponse
 putObject b objName body = do
   tok <- accessToken
   let
@@ -122,7 +122,7 @@ ulMedia = "uploadType" =: ("media" :: T.Text)
 
 
 -- | Implementation of `tokenFetch`
-requestTokenGCP :: Cloud GCP (Token GCP)
+requestTokenGCP :: WebApiM GCP (Token GCP)
 requestTokenGCP = do
    saOk <- asks credentials
    opts <- asks options

@@ -11,16 +11,16 @@ import Network.Goggles.Cloud
 
 
 
-getLbs :: (HasCredentials c, MonadHttp (Cloud c)) =>
-               Url scheme -> Option scheme -> Cloud c LbsResponse
+getLbs :: (HasCredentials c, MonadHttp (WebApiM c)) =>
+               Url scheme -> Option scheme -> WebApiM c LbsResponse
 getLbs uri opts = req GET uri NoReqBody lbsResponse opts 
 
-postLbs :: (HasCredentials c, MonadHttp (Cloud c)) =>
-               Url scheme -> Option scheme -> LB.ByteString -> Cloud c LbsResponse
+postLbs :: (HasCredentials c, MonadHttp (WebApiM c)) =>
+               Url scheme -> Option scheme -> LB.ByteString -> WebApiM c LbsResponse
 postLbs uri opts body = req POST uri (ReqBodyLbs body) lbsResponse opts
 
-putLbs :: (HasCredentials c, MonadHttp (Cloud c)) =>
-               Url scheme -> Option scheme -> LB.ByteString -> Cloud c LbsResponse
+putLbs :: (HasCredentials c, MonadHttp (WebApiM c)) =>
+               Url scheme -> Option scheme -> LB.ByteString -> WebApiM c LbsResponse
 putLbs uri opts body = req PUT uri (ReqBodyLbs body) lbsResponse opts
 
 

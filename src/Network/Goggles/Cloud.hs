@@ -2,9 +2,9 @@
 {-# language FlexibleContexts, MultiParamTypeClasses, DeriveDataTypeable #-}
 {-# language UndecidableInstances #-}
 module Network.Goggles.Cloud (
-    Cloud(..)
-  , evalCloudIO
-  , liftCloudIO
+    WebApiM(..)
+  , evalWebApiIO
+  , liftWebApiIO
   , HasCredentials(..)
   , Token(..)
   , accessToken
@@ -32,7 +32,7 @@ class HasCredentials c where
   type Credentials c
   type Options c
   type TokenContent c 
-  tokenFetch :: Cloud c (Token c)
+  tokenFetch :: WebApiM c (Token c)
 
 -- | An authentication 'Token' with an expiry date
 data Token c = Token {
@@ -52,48 +52,14 @@ data Handle c = Handle {
   }
 
 
--- | `cacheToken tok hdl` : Overwrite the token TVar `tv` containing a token if `tok` carries a more recent timestamp.
-cacheToken ::
-  HasCredentials c => Token c -> Cloud c (Token c)
-cacheToken tok = do
-  tv <- asks token
-  liftCloudIO $ atomically $ do
-    current <- readTVar tv
-    let new = case current of
-          Nothing -> tok
-          Just t -> if tTime t > tTime tok then t else tok
-    writeTVar tv (Just new)
-    return new
-
-refreshToken :: HasCredentials c => Cloud c (Token c)
-refreshToken = tokenFetch >>= cacheToken
-
-
-
--- | Extract the token content (needed to authenticate subsequent requests). The token will be valid for at least 60 seconds
-accessToken :: HasCredentials c => Cloud c (TokenContent c)
-accessToken = do
-    tokenTVar <- asks token 
-    mbToken <- liftCloudIO $ atomically $ readTVar tokenTVar
-    tToken <$> case mbToken of
-        Nothing -> refreshToken 
-        Just t -> do
-            now <- liftCloudIO $ getCurrentTime
-            if now > addUTCTime (- 60) (tTime t)
-                then refreshToken 
-                else return t  
-  
--- | Create a 'Handle' with an empty token
-createHandle :: HasCredentials c => Credentials c -> Options c -> IO (Handle c) 
-createHandle sa opts = Handle <$> pure sa <*> newTVarIO Nothing <*> pure opts
 
 -- | The main type of the library. It can easily be re-used in libraries that interface with more than one cloud API provider because its type parameter `c` lets us be declare distinct behaviours for each.
-newtype Cloud c a = Cloud {
-  runCloud :: ReaderT (Handle c) IO a
+newtype WebApiM c a = WebApiM {
+  runWebApiM :: ReaderT (Handle c) IO a
   } deriving (Functor, Applicative, Monad)
 
 
-instance HasCredentials c => Alternative (Cloud c) where
+instance HasCredentials c => Alternative (WebApiM c) where
     empty = throwM $ UnknownError "empty"
     a1 <|> a2 = do
       ra <- try a1
@@ -115,46 +81,41 @@ instance HasCredentials c => Alternative (Cloud c) where
 
 
 
--- | Lift an `IO a` action into the 'Cloud' monad
-liftCloudIO_ :: IO a -> Cloud c a
-liftCloudIO_ m = Cloud $ ReaderT (const m)
+-- | Lift an `IO a` action into the 'WebApiM' monad
+liftWebApiIO_ :: IO a -> WebApiM c a
+liftWebApiIO_ m = WebApiM $ ReaderT (const m)
 
--- | Lift an `IO a` action into the 'Cloud' monad, and catch synchronous exceptions, while rethrowing the asynchronous ones to IO
-liftCloudIO :: HasCredentials c => IO a -> Cloud c a
-liftCloudIO m = do
-  liftCloudIO_ m `catch` \e -> case fromException e of 
+-- | Lift an `IO a` action into the 'WebApiM' monad, and catch synchronous exceptions, while rethrowing the asynchronous ones to IO
+liftWebApiIO :: HasCredentials c => IO a -> WebApiM c a
+liftWebApiIO m = do
+  liftWebApiIO_ m `catch` \e -> case fromException e of 
     Just asy -> throwM (asy :: AsyncException)
     Nothing -> throwM $ IOError (show e)
 
 
 
 
-  
-
--- | Evaluate a 'Cloud' action, given a 'Handle'.
+ 
+-- | Evaluate a 'WebApiM' action, given a 'Handle'.
 --
 -- NB : Assumes all exceptions are handled by `throwM`
-evalCloudIO :: Handle c -> Cloud c a -> IO a
-evalCloudIO r (Cloud b) = runReaderT b r `catch` \e -> case (e :: CloudException) of 
+evalWebApiIO :: Handle c -> WebApiM c a -> IO a
+evalWebApiIO r (WebApiM b) = runReaderT b r `catch` \e -> case (e :: CloudException) of 
   ex -> throwM ex
 
 
 
 
 
+instance HasCredentials c => MonadIO (WebApiM c) where
+  liftIO = liftWebApiIO
 
-
-
-
-instance HasCredentials c => MonadIO (Cloud c) where
-  liftIO = liftCloudIO
-
-instance HasCredentials c => MonadThrow (Cloud c) where
+instance HasCredentials c => MonadThrow (WebApiM c) where
   throwM = liftIO . throwM
 
-instance HasCredentials c => MonadCatch (Cloud c) where
-  catch (Cloud (ReaderT m)) c =
-    Cloud $ ReaderT $ \r -> m r `catch` \e -> runReaderT (runCloud $ c e) r
+instance HasCredentials c => MonadCatch (WebApiM c) where
+  catch (WebApiM (ReaderT m)) c =
+    WebApiM $ ReaderT $ \r -> m r `catch` \e -> runReaderT (runWebApiM $ c e) r
   
 {- | the whole point of this parametrization is to have a distinct MonadHttp for each API provider/DSP
 
@@ -162,9 +123,47 @@ instance HasCredentials c => MonadHttp (Boo c) where
   handleHttpException = throwM
 -}
 
-instance HasCredentials c => MonadRandom (Cloud c) where
+instance HasCredentials c => MonadRandom (WebApiM c) where
   getRandomBytes = liftIO . getEntropy
 
-instance HasCredentials c => MonadReader (Handle c) (Cloud c) where
-  ask = Cloud RT.ask
-  local f m = Cloud $ RT.local f (runCloud m)
+instance HasCredentials c => MonadReader (Handle c) (WebApiM c) where
+  ask = WebApiM RT.ask
+  local f m = WebApiM $ RT.local f (runWebApiM m)
+
+
+
+
+-- | `cacheToken tok hdl` : Overwrite the token TVar `tv` containing a token if `tok` carries a more recent timestamp.
+cacheToken ::
+  HasCredentials c => Token c -> WebApiM c (Token c)
+cacheToken tok = do
+  tv <- asks token
+  liftWebApiIO $ atomically $ do
+    current <- readTVar tv
+    let new = case current of
+          Nothing -> tok
+          Just t -> if tTime t > tTime tok then t else tok
+    writeTVar tv (Just new)
+    return new
+
+refreshToken :: HasCredentials c => WebApiM c (Token c)
+refreshToken = tokenFetch >>= cacheToken
+
+
+
+-- | Extract the token content (needed to authenticate subsequent requests). The token will be valid for at least 60 seconds
+accessToken :: HasCredentials c => WebApiM c (TokenContent c)
+accessToken = do
+    tokenTVar <- asks token 
+    mbToken <- liftWebApiIO $ atomically $ readTVar tokenTVar
+    tToken <$> case mbToken of
+        Nothing -> refreshToken 
+        Just t -> do
+            now <- liftWebApiIO $ getCurrentTime
+            if now > addUTCTime (- 60) (tTime t)
+                then refreshToken 
+                else return t  
+  
+-- | Create a 'Handle' with an empty token
+createHandle :: HasCredentials c => Credentials c -> Options c -> IO (Handle c) 
+createHandle sa opts = Handle <$> pure sa <*> newTVarIO Nothing <*> pure opts
