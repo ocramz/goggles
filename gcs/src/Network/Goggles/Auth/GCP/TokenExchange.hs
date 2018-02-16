@@ -1,6 +1,6 @@
 {-# language OverloadedStrings, DeriveGeneric, TypeFamilies, GeneralizedNewtypeDeriving #-}
 {-# language FlexibleContexts, MultiParamTypeClasses, DataKinds, FlexibleInstances #-}
-module Network.Goggles.Auth.TokenExchange (
+module Network.Goggles.Auth.GCP.TokenExchange (
     scopesDefault
   , GCP
   , requestTokenGCP
@@ -21,9 +21,8 @@ import qualified Data.Text.Encoding as T (encodeUtf8, decodeUtf8)
 import qualified Crypto.Random.Types as CR
 
 import Network.Goggles.Cloud
-import Network.Goggles.Types
-import Network.Goggles.Auth.OAuth2
-import Network.Goggles.Auth.JWT
+import Network.Goggles.Types.GCP
+import Network.Goggles.Auth
 import Network.Utils.HTTP (putLbs, getLbs, urlEncode)
 
 

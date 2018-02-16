@@ -1,9 +1,4 @@
-{-| This module is the entry point to the @goggles@ library, which is a Haskell interface to the cloud services hosted by Google (e.g. storage, compute, mail, etc.: <https://cloud.google.com/>) .
-
-Most Google Cloud Platform (GCP) functionality requires authentication, which must be obtained beforehand from the website either with a free trial or a paid plan.
-
-From now on, we'll assume the user has such credentials and is able to load them alongside this library.
-
+{-|
 == /Dependencies/
 
 The examples require the following declarations (which in turn mean that the @req@ and @bytestring@ libraries are imported by the user's project). You will also need the @OverloadedStrings@ language extension :
@@ -34,22 +29,15 @@ This first example, @listBucket@, reads content from a cloud storage bucket:
 
 -}
 module Network.Goggles (
-  -- * API endpoints
-  -- ** Google Cloud Storage
-    getObject
-  , listObjects
-  , putObject
-  -- ** GCP Authentication scopes
-  , scopesDefault
   -- ** Running WebApiM programs
-  , createHandle    
+    createHandle    
   , evalWebApiIO
   -- *** "Lifting" IO programs into 'WebApiM'
   , liftWebApiIO
   -- * Types
-  , GCP
-  , GCPServiceAccount(..)
-  , GCPTokenOptions(..)
+  -- , GCP
+  -- , GCPServiceAccount(..)
+  -- , GCPTokenOptions(..)
   , WebApiM(..)
   -- ** Authentication
   , HasCredentials(..)
@@ -70,7 +58,7 @@ module Network.Goggles (
 import Network.Goggles.Control.Exceptions 
 import Network.Goggles.Cloud
 import Network.Goggles.Types
-import Network.Goggles.Auth.TokenExchange
+-- import Network.Goggles.Auth.TokenExchange
 import Data.Keys 
 -- import System.Environment (lookupEnv)
 
