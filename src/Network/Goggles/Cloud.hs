@@ -1,11 +1,22 @@
 {-# language OverloadedStrings, TypeFamilies, GeneralizedNewtypeDeriving #-}
 {-# language FlexibleContexts, MultiParamTypeClasses, DeriveDataTypeable #-}
 {-# language UndecidableInstances #-}
+
+{-|
+Module      : Network.Goggles.Cloud
+Description : WebApiM and related functionality
+Copyright   : (c) Marco Zocca, 2018
+License     : GPL-3
+Maintainer  : zocca.marco gmail
+Stability   : experimental
+Portability : POSIX
+-}
 module Network.Goggles.Cloud (
     WebApiM(..)
   , evalWebApiIO
   , liftWebApiIO
   , HasCredentials(..)
+  , HasToken(..)
   , Token(..)
   , accessToken
   , refreshToken

@@ -27,8 +27,9 @@ import qualified Crypto.Random.Types as CR
 import Data.ByteArray
 import Data.ByteArray.Encoding
 
-import Network.Goggles.Types
-import Network.Goggles.Control.Exceptions
+import Network.Goggles
+import Network.Goggles.Types.GCP
+
 
 
 

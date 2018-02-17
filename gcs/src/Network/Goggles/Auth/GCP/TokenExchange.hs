@@ -20,10 +20,11 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T (encodeUtf8, decodeUtf8)
 import qualified Crypto.Random.Types as CR
 
-import Network.Goggles.Cloud
+import Network.Goggles
 import Network.Goggles.Types.GCP
 import Network.Goggles.Auth
-import Network.Utils.HTTP (putLbs, getLbs, urlEncode)
+import Network.Goggles.Auth.GCP.JWT
+-- import Network.Utils.HTTP (putLbs, getLbs, urlEncode)
 
 
 
@@ -34,6 +35,8 @@ data GCP
 
 instance HasCredentials GCP where
   type Credentials GCP = GCPServiceAccount
+
+instance HasToken GCP where
   type Options GCP = GCPTokenOptions -- [T.Text]
   type TokenContent GCP = T.Text
   tokenFetch = requestTokenGCP

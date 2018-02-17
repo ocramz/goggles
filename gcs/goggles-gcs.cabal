@@ -1,7 +1,7 @@
 name:                goggles-gcs
 version:             0.1.0.0
--- synopsis:
--- description:
+synopsis:            `goggles` interface to Google Cloud Storage
+description:         `goggles` interface to Google Cloud Storage
 homepage:            https://github.com/ocramz/goggles-gcs
 license:             BSD3
 license-file:        LICENSE
@@ -18,27 +18,34 @@ library
   default-language:    Haskell2010
   ghc-options:         -Wall
   hs-source-dirs:      src
-  exposed-modules:     Network.Goggles.GCP
-                       Network.Goggles.Auth.GCP
-  other-modules:       Network.Goggles.Types.GCP
+  exposed-modules:     Network.Goggles.GCS
+  other-modules:       Network.Goggles.Auth.GCP
+                       Network.Goggles.Types.GCP
+                       Network.Goggles.Auth.GCP.JWT
+                       Network.Goggles.Auth.GCP.TokenExchange
   build-depends:       base >= 4.7 && < 5
                      , goggles
+                     , aeson
+                     , unix-time
+                     , mtl
                      , text
                      , bytestring
                      , cryptonite
+                     , memory
+                     , exceptions
                      , req
 
-test-suite spec
-  default-language:    Haskell2010
-  ghc-options:         -Wall
-  type:                exitcode-stdio-1.0
-  hs-source-dirs:      test
-  main-is:             Spec.hs
-  build-depends:       base
-                     , goggles-gcs
-                     , hspec
-                     , QuickCheck
+-- test-suite spec
+--   default-language:    Haskell2010
+--   ghc-options:         -Wall
+--   type:                exitcode-stdio-1.0
+--   hs-source-dirs:      test
+--   main-is:             Spec.hs
+--   build-depends:       base
+--                      , goggles-gcs
+--                      , hspec
+--                      , QuickCheck
 
 source-repository head
   type:     git
-  location: https://github.com/ocramz/goggles-gcs
+  location: https://github.com/ocramz/goggles

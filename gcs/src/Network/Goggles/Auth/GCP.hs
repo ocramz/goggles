@@ -1,4 +1,11 @@
-module Network.Goggles.Auth.GCP where
+module Network.Goggles.Auth.GCP
+  (
+  GCP(..), scopesDefault,
+  getObject,
+  getObjectMetadata,
+  listObjects,
+  putObject
+  )
+where
 
-import Network.Goggles.Auth.GCP.JWT
-import Network.Goggles.Auth.GCP.TokenExchange
+import Network.Goggles.Auth.GCP.TokenExchange 

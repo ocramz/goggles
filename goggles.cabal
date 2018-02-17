@@ -1,7 +1,7 @@
 name:                goggles
 version:             0.3
-synopsis:            Interface to Google Cloud APIs
-description:         High-level, extensible interface to Google Cloud APIs. 
+synopsis:            Extensible interface to Web APIs
+description:         `goggles` helps with exchanging data with APIs that require authentication. In particular, it handles the details of expiring session tokens, so the user does not have to implement this logic in her program.
 homepage:            https://github.com/ocramz/goggles
 license:             BSD3
 license-file:        LICENSE
@@ -23,12 +23,12 @@ library
                        Network.Goggles.Auth
   other-modules:       Data.Keys
                        Network.Goggles.Cloud
-                       Network.Utils.HTTP
                        Network.Goggles.Types
+                       Network.Goggles.Control.Exceptions
+                       Network.Utils.HTTP                          
                        -- Network.Goggles.Auth.JWT
                        Network.Goggles.Auth.OAuth2
                        -- Network.Goggles.Auth.TokenExchange
-                       Network.Goggles.Control.Exceptions
   build-depends:       base >= 4.7 && < 5
                      , binary
                      , scientific
