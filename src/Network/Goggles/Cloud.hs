@@ -29,10 +29,10 @@ import Network.Goggles.Control.Exceptions
 
 class HasCredentials c where
   type Credentials c
-  type Options c
 
 class HasToken c where
   type TokenContent c
+  type Options c  
   tokenFetch :: WebApiM c (Token c)
 
 -- | An authentication 'Token' with an expiry date
