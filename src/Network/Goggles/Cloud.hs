@@ -27,11 +27,12 @@ import Data.Time
 import Network.Goggles.Control.Exceptions
 
 
--- | This class 
 class HasCredentials c where
   type Credentials c
   type Options c
-  type TokenContent c 
+
+class HasToken c where
+  type TokenContent c
   tokenFetch :: WebApiM c (Token c)
 
 -- | An authentication 'Token' with an expiry date
@@ -86,8 +87,8 @@ liftWebApiIO_ :: IO a -> WebApiM c a
 liftWebApiIO_ m = WebApiM $ ReaderT (const m)
 
 -- | Lift an `IO a` action into the 'WebApiM' monad, and catch synchronous exceptions, while rethrowing the asynchronous ones to IO
-liftWebApiIO :: HasCredentials c => IO a -> WebApiM c a
-liftWebApiIO m = do
+liftWebApiIO :: IO a -> WebApiM c a
+liftWebApiIO m = 
   liftWebApiIO_ m `catch` \e -> case fromException e of 
     Just asy -> throwM (asy :: AsyncException)
     Nothing -> throwM $ IOError (show e)
@@ -107,13 +108,13 @@ evalWebApiIO r (WebApiM b) = runReaderT b r `catch` \e -> case (e :: CloudExcept
 
 
 
-instance HasCredentials c => MonadIO (WebApiM c) where
+instance MonadIO (WebApiM c) where
   liftIO = liftWebApiIO
 
-instance HasCredentials c => MonadThrow (WebApiM c) where
+instance MonadThrow (WebApiM c) where
   throwM = liftIO . throwM
 
-instance HasCredentials c => MonadCatch (WebApiM c) where
+instance MonadCatch (WebApiM c) where
   catch (WebApiM (ReaderT m)) c =
     WebApiM $ ReaderT $ \r -> m r `catch` \e -> runReaderT (runWebApiM $ c e) r
   
@@ -123,10 +124,10 @@ instance HasCredentials c => MonadHttp (Boo c) where
   handleHttpException = throwM
 -}
 
-instance HasCredentials c => MonadRandom (WebApiM c) where
+instance MonadRandom (WebApiM c) where
   getRandomBytes = liftIO . getEntropy
 
-instance HasCredentials c => MonadReader (Handle c) (WebApiM c) where
+instance MonadReader (Handle c) (WebApiM c) where
   ask = WebApiM RT.ask
   local f m = WebApiM $ RT.local f (runWebApiM m)
 
@@ -135,7 +136,7 @@ instance HasCredentials c => MonadReader (Handle c) (WebApiM c) where
 
 -- | `cacheToken tok hdl` : Overwrite the token TVar `tv` containing a token if `tok` carries a more recent timestamp.
 cacheToken ::
-  HasCredentials c => Token c -> WebApiM c (Token c)
+  HasToken c => Token c -> WebApiM c (Token c)
 cacheToken tok = do
   tv <- asks token
   liftWebApiIO $ atomically $ do
@@ -146,20 +147,20 @@ cacheToken tok = do
     writeTVar tv (Just new)
     return new
 
-refreshToken :: HasCredentials c => WebApiM c (Token c)
+refreshToken :: HasToken c => WebApiM c (Token c)
 refreshToken = tokenFetch >>= cacheToken
 
 
 
 -- | Extract the token content (needed to authenticate subsequent requests). The token will be valid for at least 60 seconds
-accessToken :: HasCredentials c => WebApiM c (TokenContent c)
+accessToken :: (HasToken c) => WebApiM c (TokenContent c)
 accessToken = do
     tokenTVar <- asks token 
     mbToken <- liftWebApiIO $ atomically $ readTVar tokenTVar
     tToken <$> case mbToken of
         Nothing -> refreshToken 
         Just t -> do
-            now <- liftWebApiIO $ getCurrentTime
+            now <- liftWebApiIO getCurrentTime
             if now > addUTCTime (- 60) (tTime t)
                 then refreshToken 
                 else return t  
