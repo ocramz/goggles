@@ -1,3 +1,6 @@
+	0.3.1
+	* Add Haddock module header documentation
+	
 	0.3
 	* Split HasCredentials into HasCredentials, HasToken
 
