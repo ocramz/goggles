@@ -15,13 +15,17 @@ In particular, `goggles` can take care of automatically refreshing a token that 
 
 
 
-== Usage
+
+
+== Preliminaries
 
 @
 import Network.Goggles
 @
 
-The user might also need to turn on the `OverloadedStrings` language extension.
+Required language extensions: `OverloadedStrings`, `TypeFamilies`, `FlexibleInstances` .
+
+== Usage
 
 To begin with, the user provides a type for the remote service she wishes to interface to, along with a couple typeclass instances.
 
@@ -31,7 +35,7 @@ data Remote
 newtype C = C { apiKey :: 'Text' } deriving Eq   -- API authentication credentials
 @
 
-Notice we don't actually need any data constructor associated with the 'Remote' type. In the simplest case it can be a "phantom type", only used as a label for typeclass instances.
+Notice we don't actually need any data constructor associated with the 'Remote' type. In the simplest case it can be a "phantom type", only used to label typeclass instances.
 
 This library design allows to be general as possible (many instances are polymorphic in this label, so the user doesn't need to write them), and specific where needed (as we will see with the exception handling mechanism further below.
 
@@ -54,7 +58,7 @@ If the API requires a token as well (this is the case with OAuth2-based implemen
 @
 instance HasToken Remote where
   type Options Remote = ...                  -- any parameters that should be passed to the API call
-  type TokenContent Remote = Text            -- must match the type of 'apiKey' defined above
+  type TokenContent Remote = ...             -- the raw token string type returned by the API, often a 'ByteString'             
   tokenFetch = ...                           -- create and retrieve the token from the remote API
 @
 
@@ -65,7 +69,7 @@ Once this is in place, a valid token can always be retrieved with 'accessToken'.
 Internally, `goggles` uses `req` for HTTP connections, so the user must always provide a 'MonadHttp' instance for her 'Remote' type :
 
 @
-instance MonadHttp Remote where
+instance MonadHttp (WebApiM Remote) where
   handleHttpExcepions = ...
 @
 
