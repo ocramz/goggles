@@ -9,16 +9,43 @@ import Network.HTTP.Req
 
 import Network.Goggles.Cloud
 
+-- | Create an authenticated 'GET' call
+getLbsWithToken :: (HasCredentials c, HasToken c, MonadHttp (WebApiM c)) =>
+                   (TokenContent c -> Url scheme -> Option scheme -> (Url scheme, Option scheme))
+                -> Url scheme
+                -> Option scheme
+                -> WebApiM c LbsResponse
+getLbsWithToken fOpts uri opts = do
+  tok <- accessToken
+  let (uri', opts') = fOpts tok uri opts
+  getLbs uri' opts'
 
+-- | Sending data with an authenticated call
+--
+-- The first function argument may be either 'postLbs' or 'putLbs'
+sendWithToken :: HasToken c =>
+                 (Url scheme -> Option scheme -> LB.ByteString -> WebApiM c b)
+              -> (TokenContent c -> Url scheme -> Option scheme -> LB.ByteString -> (Url scheme, Option scheme, LB.ByteString))
+              -> Url scheme
+              -> Option scheme
+              -> LB.ByteString
+              -> WebApiM c b
+sendWithToken f fOpts uri opts body = do   
+  tok <- accessToken
+  let (uri', opts', body') = fOpts tok uri opts body
+  f uri' opts' body'
 
+-- | 'GET' a lazy bytestring from an API endpoint
 getLbs :: (HasCredentials c, MonadHttp (WebApiM c)) =>
                Url scheme -> Option scheme -> WebApiM c LbsResponse
 getLbs uri opts = req GET uri NoReqBody lbsResponse opts 
 
+-- | 'POST' a request to an API endpoint and receive a lazy bytestring in return
 postLbs :: (HasCredentials c, MonadHttp (WebApiM c)) =>
                Url scheme -> Option scheme -> LB.ByteString -> WebApiM c LbsResponse
 postLbs uri opts body = req POST uri (ReqBodyLbs body) lbsResponse opts
 
+-- | 'PUT' a request to an API endpoint and receive a lazy bytestring in return
 putLbs :: (HasCredentials c, MonadHttp (WebApiM c)) =>
                Url scheme -> Option scheme -> LB.ByteString -> WebApiM c LbsResponse
 putLbs uri opts body = req PUT uri (ReqBodyLbs body) lbsResponse opts

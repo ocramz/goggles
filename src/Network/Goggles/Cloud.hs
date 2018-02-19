@@ -65,7 +65,7 @@ data Handle c = Handle {
 
 
 
--- | The main type of the library. It can easily be re-used in libraries that interface with more than one cloud API provider because its type parameter `c` lets us be declare distinct behaviours for each.
+-- | The main type of the library. It can easily be re-used in libraries that interface with more than one cloud API provider because its type parameter `c` lets us declare distinct behaviours for each.
 newtype WebApiM c a = WebApiM {
   runWebApiM :: ReaderT (Handle c) IO a
   } deriving (Functor, Applicative, Monad)
@@ -129,11 +129,6 @@ instance MonadCatch (WebApiM c) where
   catch (WebApiM (ReaderT m)) c =
     WebApiM $ ReaderT $ \r -> m r `catch` \e -> runReaderT (runWebApiM $ c e) r
   
-{- | the whole point of this parametrization is to have a distinct MonadHttp for each API provider/DSP
-
-instance HasCredentials c => MonadHttp (Boo c) where
-  handleHttpException = throwM
--}
 
 instance MonadRandom (WebApiM c) where
   getRandomBytes = liftIO . getEntropy
@@ -176,6 +171,6 @@ accessToken = do
                 then refreshToken 
                 else return t  
   
--- | Create a 'Handle' with an empty token
+-- | Create a 'Handle' with an initially empty token
 createHandle :: HasCredentials c => Credentials c -> Options c -> IO (Handle c) 
 createHandle sa opts = Handle <$> pure sa <*> newTVarIO Nothing <*> pure opts

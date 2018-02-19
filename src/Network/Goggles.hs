@@ -59,7 +59,7 @@ If the API requires a token as well (this is the case with OAuth2-based implemen
 instance HasToken Remote where
   type Options Remote = ...                  -- any parameters that should be passed to the API call
   type TokenContent Remote = ...             -- the raw token string type returned by the API, often a 'ByteString'             
-  tokenFetch = ...                           -- create and retrieve the token from the remote API
+  tokenFetch = ...                           -- function that creates and retrieves the token from the remote API
 @
 
 Once this is in place, a valid token can always be retrieved with 'accessToken'. This checks the validity of the locally cached token and performs a 'tokenFetch' only when this is about to expire.
@@ -70,18 +70,32 @@ Internally, `goggles` uses `req` for HTTP connections, so the user must always p
 
 @
 instance MonadHttp (WebApiM Remote) where
-  handleHttpExcepions = ...
+  handleHttpExcepion = ...
 @
 
-The actual implementation of `handleHttpExceptions` depends on the actual API semantics, but the user can just use 'throwM' here (imported from the 'Control.Monad.Catch' module of the `exceptions` package).
+The actual implementation of `handleHttpException` depends on the actual API semantics, but the user can just use 'throwM' here (imported from the 'Control.Monad.Catch' module of the `exceptions` package).
+
+=== Putting it all together
+
+The usual workflow is as follows:
+
+* Create a 'Handle' with 'createHandle'. This requires a surrounding IO block because token refreshing is done as an atomic update in the STM monad.
+
+* Compose the program that interacts with the external API in the 'WebApiM' monad.
+
+* Run the program using the handle with 'evalWebApiIO'.
 
 
 -}
 module Network.Goggles (
-  -- ** Running WebApiM programs
+  -- * Sending and receiving data
+  getLbs, postLbs, putLbs,
+  -- * Sending and receiving data, with token authentication
+  getLbsWithToken, sendWithToken, 
+  -- * Running WebApiM programs
     createHandle    
   , evalWebApiIO
-  -- *** Lifting IO programs into 'WebApiM'
+  -- ** Lifting IO programs into 'WebApiM'
   , liftWebApiIO
   -- * Types
   , WebApiM(..)
@@ -102,7 +116,7 @@ module Network.Goggles (
   , TokenExchangeException(..)
   , CloudException(..)
   -- * Utilities
-  , putLbs, getLbs, urlEncode
+  , urlEncode
   ) where
 
 
