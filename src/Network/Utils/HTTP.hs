@@ -11,29 +11,41 @@ import Network.Goggles.Cloud
 
 -- | Create an authenticated 'GET' call
 getLbsWithToken :: (HasCredentials c, HasToken c, MonadHttp (WebApiM c)) =>
-                   (TokenContent c -> Url scheme -> Option scheme -> (Url scheme, Option scheme))
-                -> Url scheme
-                -> Option scheme
+                   (TokenContent c -> Url scheme -> Option scheme -> (Url scheme, Option scheme)) -- ^ Modify request URL and/or request 'Option's using the token data
+                -> Url scheme    -- ^ Initial URL
+                -> Option scheme -- ^ Initial 'Option's
                 -> WebApiM c LbsResponse
 getLbsWithToken fOpts uri opts = do
   tok <- accessToken
   let (uri', opts') = fOpts tok uri opts
   getLbs uri' opts'
 
--- | Sending data with an authenticated call
---
--- The first function argument may be either 'postLbs' or 'putLbs'
-sendWithToken :: HasToken c =>
-                 (Url scheme -> Option scheme -> LB.ByteString -> WebApiM c b)
-              -> (TokenContent c -> Url scheme -> Option scheme -> LB.ByteString -> (Url scheme, Option scheme, LB.ByteString))
-              -> Url scheme
-              -> Option scheme
-              -> LB.ByteString
-              -> WebApiM c b
-sendWithToken f fOpts uri opts body = do   
+
+-- | Create an authenticated 'POST' call
+postLbsWithToken :: (HasCredentials c, HasToken c, MonadHttp (WebApiM c)) =>
+                   (TokenContent c -> Url scheme -> Option scheme -> LB.ByteString ->  (Url scheme, Option scheme, LB.ByteString)) -- ^ Modify request URL, request 'Option's and/or request body using the token data
+
+                -> Url scheme     -- ^ Initial URL
+                -> Option scheme  -- ^ Initial 'Option's
+                -> LB.ByteString  -- ^ Initial request body
+                -> WebApiM c LbsResponse
+postLbsWithToken  fOpts uri opts body = do   
   tok <- accessToken
   let (uri', opts', body') = fOpts tok uri opts body
-  f uri' opts' body'
+  postLbs uri' opts' body'
+
+-- | Create an authenticated 'PUT' call
+putLbsWithToken :: (HasCredentials c, HasToken c, MonadHttp (WebApiM c)) =>
+                   (TokenContent c -> Url scheme -> Option scheme -> LB.ByteString ->  (Url scheme, Option scheme, LB.ByteString))   -- ^ Modify request URL, request 'Option's and/or request body using the token data
+
+                -> Url scheme  -- ^ Initial URL
+                -> Option scheme -- ^ Initial 'Option's
+                -> LB.ByteString -- ^ Initial request body
+                -> WebApiM c LbsResponse
+putLbsWithToken  fOpts uri opts body = do   
+  tok <- accessToken
+  let (uri', opts', body') = fOpts tok uri opts body
+  putLbs uri' opts' body'  
 
 -- | 'GET' a lazy bytestring from an API endpoint
 getLbs :: (HasCredentials c, MonadHttp (WebApiM c)) =>

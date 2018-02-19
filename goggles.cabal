@@ -1,5 +1,5 @@
 name:                goggles
-version:             0.3.1
+version:             0.3.2
 synopsis:            Extensible interface to Web APIs
 description:         `goggles` helps with exchanging data with APIs that require authentication. In particular, it handles the details of expiring session tokens, so the user does not have to implement this logic in her program.
 homepage:            https://github.com/ocramz/goggles

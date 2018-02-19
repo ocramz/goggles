@@ -7,7 +7,7 @@ Maintainer  : zocca.marco gmail
 Stability   : experimental
 Portability : POSIX
 
-== Introduction
+= Introduction
 
 This library aims to abstract away (part of) the bookkeeping related to exchanging data with web APIs.
 
@@ -17,7 +17,7 @@ In particular, `goggles` can take care of automatically refreshing a token that 
 
 
 
-== Preliminaries
+= Preliminaries
 
 @
 import Network.Goggles
@@ -25,7 +25,7 @@ import Network.Goggles
 
 Required language extensions: `OverloadedStrings`, `TypeFamilies`, `FlexibleInstances` .
 
-== Usage
+= Usage
 
 To begin with, the user provides a type for the remote service she wishes to interface to, along with a couple typeclass instances.
 
@@ -64,7 +64,7 @@ instance HasToken Remote where
 
 Once this is in place, a valid token can always be retrieved with 'accessToken'. This checks the validity of the locally cached token and performs a 'tokenFetch' only when this is about to expire.
 
-=== Exception handling
+= Exception handling
 
 Internally, `goggles` uses `req` for HTTP connections, so the user must always provide a 'MonadHttp' instance for her 'Remote' type :
 
@@ -75,13 +75,13 @@ instance MonadHttp (WebApiM Remote) where
 
 The actual implementation of `handleHttpException` depends on the actual API semantics, but the user can just use 'throwM' here (imported from the 'Control.Monad.Catch' module of the `exceptions` package).
 
-=== Putting it all together
+= Putting it all together
 
 The usual workflow is as follows:
 
-* Create a 'Handle' with 'createHandle'. This requires a surrounding IO block because token refreshing is done as an atomic update in the STM monad.
+* Create a 'Handle' from the API credentials and any API options with 'createHandle'. This requires a surrounding IO block because token refreshing is done as an atomic update in the STM monad.
 
-* Compose the program that interacts with the external API in the 'WebApiM' monad.
+* Build up the program that interacts with the external API in the 'WebApiM' monad.
 
 * Run the program using the handle with 'evalWebApiIO'.
 
@@ -91,7 +91,7 @@ module Network.Goggles (
   -- * Sending and receiving data
   getLbs, postLbs, putLbs,
   -- * Sending and receiving data, with token authentication
-  getLbsWithToken, sendWithToken, 
+  getLbsWithToken, postLbsWithToken, putLbsWithToken, 
   -- * Running WebApiM programs
     createHandle    
   , evalWebApiIO
