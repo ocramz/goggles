@@ -4,7 +4,8 @@ module Network.Goggles.Auth.GCP
   getObject,
   getObjectMetadata,
   listObjects,
-  putObject
+  putObject,
+  requestTokenGCP
   )
 where
 

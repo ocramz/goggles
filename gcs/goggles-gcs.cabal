@@ -1,5 +1,5 @@
 name:                goggles-gcs
-version:             0.1.0.0
+version:             0.1.1
 synopsis:            `goggles` interface to Google Cloud Storage
 description:         `goggles` interface to Google Cloud Storage
 homepage:            https://github.com/ocramz/goggles-gcs
@@ -8,7 +8,7 @@ license-file:        LICENSE
 author:              Marco Zocca
 maintainer:          zocca.marco gmail
 copyright:           2018 Marco Zocca
-category:            Acme
+category:            Network
 build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10

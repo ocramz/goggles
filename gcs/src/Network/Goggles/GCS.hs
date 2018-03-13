@@ -33,7 +33,8 @@ module Network.Goggles.GCS (
   getObject,
   getObjectMetadata,
   listObjects,
-  putObject
+  putObject,
+  requestTokenGCP
   )
 where
 
