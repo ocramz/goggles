@@ -1,5 +1,5 @@
 name:                goggles-gcs
-version:             0.1.1
+version:             0.1.2
 synopsis:            `goggles` interface to Google Cloud Storage
 description:         `goggles` interface to Google Cloud Storage
 homepage:            https://github.com/ocramz/goggles-gcs

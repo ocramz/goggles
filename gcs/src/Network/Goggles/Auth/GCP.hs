@@ -1,6 +1,9 @@
 module Network.Goggles.Auth.GCP
   (
-  GCP(..), scopesDefault,
+  GCP(..),
+  GCPServiceAccount(..),
+  GCPTokenOptions(..)  ,
+  scopesDefault,
   getObject,
   getObjectMetadata,
   listObjects,

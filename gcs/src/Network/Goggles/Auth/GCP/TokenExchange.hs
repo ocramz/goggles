@@ -3,6 +3,8 @@
 module Network.Goggles.Auth.GCP.TokenExchange (
     scopesDefault
   , GCP
+  , GCPServiceAccount(..)
+  , GCPTokenOptions(..)
   , requestTokenGCP
   , getObject
   , getObjectMetadata

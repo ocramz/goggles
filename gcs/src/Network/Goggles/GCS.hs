@@ -29,11 +29,17 @@ This first example, @listBucket@, reads content from a cloud storage bucket:
 -}
 
 module Network.Goggles.GCS (
-  GCP(..), scopesDefault,
+  -- * Types
+  GCP(..),
+  GCPServiceAccount(..),
+  GCPTokenOptions(..),
+  scopesDefault,
+  -- * Methods
   getObject,
   getObjectMetadata,
   listObjects,
   putObject,
+  -- * Token handling
   requestTokenGCP
   )
 where
